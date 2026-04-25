@@ -1,0 +1,11 @@
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+fastapi
+uvicorn
+jinja2
+python-multipart
+sqlalchemy
+asyncpg
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart

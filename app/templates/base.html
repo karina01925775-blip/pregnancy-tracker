@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мама рядом — {% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+</head>
+<body>
+
+    <!-- ===== ГЛАВНАЯ СТРАНИЦА ===== -->
+    <main class="page active" id="page-home">
+        <section class="greeting" id="greeting-section" data-username="{{ name | default('Гость') }}">
+            <h1 id="greeting-text"></h1>
+            <p id="greeting-sub"></p>
+        </section>
+        <section class="calendar" id="calendar">
+            <div class="calendar-header">
+                <button id="prev-month">‹</button>
+                <h2 id="month-year"></h2>
+                <button id="next-month">›</button>
+            </div>
+            <div class="calendar-weekdays">
+                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span>
+                <span>Пт</span><span>Сб</span><span>Вс</span>
+            </div>
+            <div class="calendar-days" id="calendar-days"></div>
+        </section>
+    </main>
+
+    <!-- ===== СТРАНИЦА ПРОФИЛЯ ===== -->
+    <main class="page" id="page-profile">
+        <div class="profile-card">
+            <div class="avatar">👤</div>
+            <h2>Иван Иванов</h2>
+            <p class="email">ivan@example.com</p>
+            <div class="profile-stats">
+                <div class="stat">
+                    <div class="number">128</div>
+                    <div class="label">Дней</div>
+                </div>
+                <div class="stat">
+                    <div class="number">42</div>
+                    <div class="label">Задачи</div>
+                </div>
+                <div class="stat">
+                    <div class="number">7</div>
+                    <div class="label">Проекты</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ===== ПОДВАЛ ===== -->
+    <footer>
+        <p>&copy; 2026 Мой Сайт. Сделано с ❤️</p>
+    </footer>
+
+    <!-- ===== ПЛАВАЮЩЕЕ МЕНЮ ===== -->
+    <nav class="floating-menu" id="floating-menu">
+        <div class="drag-handle"><span></span></div>
+        <button class="active" data-page="page-home">🏠 Главная</button>
+        <button data-page="page-profile">👤 Профиль</button>
+    </nav>
+
+    <!-- ===== СКРИПТЫ ===== -->
+    <script src="static/js/script.js" defer></script>
+</body>
+</html>

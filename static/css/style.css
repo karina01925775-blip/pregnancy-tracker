@@ -1,0 +1,305 @@
+
+
+/* ===== СБРОС И БАЗОВЫЕ СТИЛИ ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===== КОНТЕНТ СТРАНИЦ ===== */
+.page {
+    display: none;
+    flex: 1;
+    padding: 40px 20px;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.page.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== ГЛАВНАЯ СТРАНИЦА ===== */
+.greeting {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.greeting h1 {
+    font-size: 2.8rem;
+    background: linear-gradient(90deg, #f9d423, #ff4e50);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+}
+
+.greeting p {
+    font-size: 1.2rem;
+    color: #aaa;
+}
+
+/* ===== КАЛЕНДАРЬ ===== */
+.calendar {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 30px;
+    width: 100%;
+    max-width: 500px;
+    backdrop-filter: blur(10px);
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.calendar-header h2 {
+    font-size: 1.4rem;
+    color: #f9d423;
+}
+
+.calendar-header button {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: background 0.3s;
+}
+
+.calendar-header button:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.calendar-weekdays span {
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #888;
+    padding: 8px 0;
+}
+
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-days span {
+    text-align: center;
+    padding: 10px 0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.95rem;
+}
+
+.calendar-days span:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.calendar-days span.today {
+    background: linear-gradient(135deg, #f9d423, #ff4e50);
+    color: #000;
+    font-weight: 700;
+}
+
+.calendar-days span.other-month {
+    color: #555;
+}
+
+/* ===== СТРАНИЦА ПРОФИЛЯ ===== */
+.profile-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+.avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f9d423, #ff4e50);
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: #000;
+}
+
+.profile-card h2 {
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+}
+
+.profile-card .email {
+    color: #888;
+    margin-bottom: 20px;
+}
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.stat {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.stat .number {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #f9d423;
+}
+
+.stat .label {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 4px;
+}
+
+/* ===== ПОДВАЛ ===== */
+footer {
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: auto;
+}
+
+footer a {
+    color: #f9d423;
+    text-decoration: none;
+}
+
+/* ===== ПЛАВАЮЩЕЕ МЕНЮ ===== */
+.floating-menu {
+    position: fixed;
+    top: 120px;
+    right: 30px;
+    z-index: 1000;
+    background: rgba(30, 30, 60, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    padding: 8px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    cursor: grab;
+    user-select: none;
+    transition: box-shadow 0.3s;
+}
+
+.floating-menu:active {
+    cursor: grabbing;
+}
+
+.floating-menu.dragging {
+    box-shadow: 0 12px 48px rgba(249, 212, 35, 0.25);
+    border-color: rgba(249, 212, 35, 0.4);
+}
+
+.floating-menu button {
+    display: block;
+    width: 100%;
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    color: #ccc;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.25s;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.floating-menu button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.floating-menu button.active {
+    background: linear-gradient(135deg, #f9d423, #ff4e50);
+    color: #000;
+    font-weight: 600;
+}
+
+/* Индикатор-ручка для перетаскивания */
+.drag-handle {
+    display: flex;
+    justify-content: center;
+    padding: 6px 0 2px;
+}
+
+.drag-handle span {
+    width: 30px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+}
+
+/* ===== АДАПТИВНОСТЬ ===== */
+@media (max-width: 600px) {
+    .greeting h1 {
+        font-size: 2rem;
+    }
+
+    .calendar {
+        padding: 16px;
+    }
+
+    .floating-menu {
+        right: 10px;
+        top: 100px;
+    }
+
+    .floating-menu button {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+}
