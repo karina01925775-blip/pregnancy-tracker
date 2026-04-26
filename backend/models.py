@@ -173,5 +173,3 @@ class KnowledgeBase(Base):
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     keywords = Column(String, nullable=True)        # ключевые слова через запятую для поиска ИИ-ассистентом
-
-# Предзаполнение базы знаний (см. ниже)
