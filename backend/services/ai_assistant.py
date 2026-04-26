@@ -1,7 +1,7 @@
 import re
 from sqlalchemy.orm import Session
 from datetime import date
-from services.pregnancy_utils import calculate_week_and_due_date
+from pregnancy_utils import calculate_week_and_due_date
 from models import Pregnancy, KnowledgeBase
 
 CRITICAL_KEYWORDS = [
