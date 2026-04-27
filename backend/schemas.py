@@ -21,11 +21,13 @@ class UserResponse(BaseModel):
     role: UserRole
     class Config:
         from_attributes = True
+
 class PregnancyCreate(BaseModel):
     last_menstruation_date: date
 
 class PregnancyResponse(BaseModel):
     id: int
+    patient_id: int
     last_menstruation_date: date
     due_date: Optional[date]
     status: PregnancyStatus
@@ -35,13 +37,16 @@ class PregnancyResponse(BaseModel):
 
 class EventCreate(BaseModel):
     title: str
-    description: Optional[str]
-    event_of_pregnancy: int
+    description: Optional[str] = None
+    event_date: date
+    week_of_pregnancy: int
+
 class EventResponse(BaseModel):
     id: int
     title: str
     description: Optional[str]
-    event_of_pregnancy: int
+    event_date: date
+    week_of_pregnancy: int
     status: str
     class Config:
         from_attributes = True
@@ -57,12 +62,21 @@ class SymptomResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class InviteRequest(BaseModel):
+class InviteCreate(BaseModel):
+    email: EmailStr
+    role: UserRole
+    pregnancy_id: int
+
+class InviteResponse(BaseModel):  # нужен для ответа на создание приглашения
+    invite_link: str
+    expires_at: datetime
+
+class AcceptInviteRequest(BaseModel):
     token: str
     password: Optional[str] = None
     full_name: Optional[str] = None
 
-class ChatMessageCreated(BaseModel):
+class ChatMessageCreate(BaseModel):
     message: str
 
 class ChatMessageResponse(BaseModel):
