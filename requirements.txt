@@ -4,7 +4,6 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-sqlalchemy
 asyncpg
 passlib[bcrypt]
 python-jose[cryptography]
