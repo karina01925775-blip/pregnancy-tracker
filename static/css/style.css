@@ -1,305 +1,376 @@
+/* ===== ШРИФТ ===== */
+@font-face {
+  font-family: 'Pacifico';
+  src: url('fonts/pacifico.woff2') format('woff2'),
+       url('fonts/pacifico.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
+/* ===== ПЕРЕМЕННЫЕ (Светлая тема: Светло-розовый + Светло-бежевый) ===== */
+:root {
+  --primary: #F4C2C2;       /* Светло-розовый */
+  --secondary: #E8DCC8;     /* Бежевый светло */
+  --primary-rgb: 244, 194, 194;
+  --secondary-rgb: 232, 220, 200;
+
+  --bg-gradient: linear-gradient(135deg, #FDF8F8, #F5F0E8);
+  --text-main: #3E3C38;     /* Тёплый тёмно-серый */
+  --text-muted: #8A847C;    /* Мягкий серый для подписей */
+
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.85);
+  --shadow: 0 8px 24px rgba(62, 60, 56, 0.08);
+}
 
 /* ===== СБРОС И БАЗОВЫЕ СТИЛИ ===== */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    color: #e0e0e0;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg-gradient);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== КОНТЕНТ СТРАНИЦ ===== */
 .page {
-    display: none;
-    flex: 1;
-    padding: 40px 20px;
-    max-width: 800px;
-    margin: 0 auto;
-    width: 100%;
+  display: none;
+  flex: 1;
+  padding: 40px 20px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .page.active {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    animation: fadeIn 0.4s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.4s ease;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ===== ГЛАВНАЯ СТРАНИЦА ===== */
 .greeting {
-    text-align: center;
-    margin-bottom: 40px;
+  text-align: center;
+  margin-bottom: 40px;
 }
 
 .greeting h1 {
-    font-size: 2.8rem;
-    background: linear-gradient(90deg, #f9d423, #ff4e50);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 10px;
+  font-family: 'Pacifico', cursive;
+  font-size: 3rem;
+  /* Чуть насыщеннее для читаемости на светлом фоне */
+  background: linear-gradient(90deg, #E5A5B5, #C8B898);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.06));
 }
 
 .greeting p {
-    font-size: 1.2rem;
-    color: #aaa;
+  font-size: 1.2rem;
+  color: var(--text-muted);
 }
 
 /* ===== КАЛЕНДАРЬ ===== */
 .calendar {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 30px;
-    width: 100%;
-    max-width: 500px;
-    backdrop-filter: blur(10px);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: 16px;
+  padding: 30px;
+  width: 100%;
+  max-width: 500px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
 }
 
 .calendar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .calendar-header h2 {
-    font-size: 1.4rem;
-    color: #f9d423;
+  font-size: 1.4rem;
+  color: var(--text-main);
 }
 
 .calendar-header button {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.1rem;
-    transition: background 0.3s;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(var(--primary-rgb), 0.3);
+  color: var(--text-main);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.3s;
+  backdrop-filter: blur(4px);
 }
 
 .calendar-header button:hover {
-    background: rgba(255, 255, 255, 0.25);
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
 }
 
 .calendar-weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .calendar-weekdays span {
-    text-align: center;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #888;
-    padding: 8px 0;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 8px 0;
 }
 
 .calendar-days {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
 }
 
 .calendar-days span {
-    text-align: center;
-    padding: 10px 0;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 0.95rem;
+  text-align: center;
+  padding: 10px 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+  color: var(--text-main);
 }
 
 .calendar-days span:hover {
-    background: rgba(255, 255, 255, 0.15);
+  background: rgba(var(--secondary-rgb), 0.2);
 }
 
 .calendar-days span.today {
-    background: linear-gradient(135deg, #f9d423, #ff4e50);
-    color: #000;
-    font-weight: 700;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #4a3f3f; /* Тёмный текст для контраста на светлом градиенте */
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.3);
 }
 
 .calendar-days span.other-month {
-    color: #555;
+  color: #C5C0B8;
+}
+
+/* Базовый стиль выделения */
+.calendar-days span.highlighted {
+    background: rgba(var(--secondary-rgb), 0.3);
+    border-radius: 4px;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+/* Начало диапазона */
+.calendar-days span.range-start {
+    background: var(--secondary);
+    color: #4a3f3f;
+    border-radius: 10px 4px 4px 10px;
+    font-weight: 600;
+}
+
+/* Конец диапазона */
+.calendar-days span.range-end {
+    background: var(--secondary);
+    color: #4a3f3f;
+    border-radius: 4px 10px 10px 4px;
+    font-weight: 600;
+}
+
+/* Если начало и конец совпадают (один день) */
+.calendar-days span.highlighted.range-start.range-end {
+    border-radius: 10px;
+}
+
+/* Убираем наложение стилей, если день одновременно "сегодня" и в диапазоне */
+.calendar-days span.today.highlighted {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #4a3f3f;
+    border-radius: 10px;
 }
 
 /* ===== СТРАНИЦА ПРОФИЛЯ ===== */
 .profile-card {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 40px;
-    width: 100%;
-    max-width: 500px;
-    text-align: center;
-    backdrop-filter: blur(10px);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: 16px;
+  padding: 40px;
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
 }
 
 .avatar {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #f9d423, #ff4e50);
-    margin: 0 auto 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-    color: #000;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  color: #4a3f3f;
+  box-shadow: 0 6px 16px rgba(var(--secondary-rgb), 0.25);
 }
 
 .profile-card h2 {
-    font-size: 1.8rem;
-    margin-bottom: 8px;
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+  color: var(--text-main);
 }
 
 .profile-card .email {
-    color: #888;
-    margin-bottom: 20px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
 }
 
 .profile-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 20px;
 }
 
 .stat {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  padding: 16px;
+  border: var(--glass-border);
 }
 
 .stat .number {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #f9d423;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--secondary);
 }
 
 .stat .label {
-    font-size: 0.8rem;
-    color: #888;
-    margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
 }
 
 /* ===== ПОДВАЛ ===== */
 footer {
-    background: rgba(0, 0, 0, 0.3);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    text-align: center;
-    padding: 20px;
-    color: #666;
-    font-size: 0.9rem;
-    margin-top: auto;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(5px);
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: auto;
 }
 
 footer a {
-    color: #f9d423;
-    text-decoration: none;
+  color: var(--secondary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+footer a:hover {
+  color: var(--primary);
 }
 
 /* ===== ПЛАВАЮЩЕЕ МЕНЮ ===== */
 .floating-menu {
-    position: fixed;
-    top: 120px;
-    right: 30px;
-    z-index: 1000;
-    background: rgba(30, 30, 60, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 14px;
-    padding: 8px;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    cursor: grab;
-    user-select: none;
-    transition: box-shadow 0.3s;
+  position: fixed;
+  top: 120px;
+  right: 30px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.7);
+  border: var(--glass-border);
+  border-radius: 14px;
+  padding: 8px;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  box-shadow: var(--shadow);
+  cursor: grab;
+  user-select: none;
+  transition: all 0.3s;
 }
 
 .floating-menu:active {
-    cursor: grabbing;
+  cursor: grabbing;
 }
 
 .floating-menu.dragging {
-    box-shadow: 0 12px 48px rgba(249, 212, 35, 0.25);
-    border-color: rgba(249, 212, 35, 0.4);
+  box-shadow: 0 12px 40px rgba(var(--primary-rgb), 0.15);
+  transform: scale(1.02);
 }
 
 .floating-menu button {
-    display: block;
-    width: 100%;
-    padding: 12px 24px;
-    background: transparent;
-    border: none;
-    color: #ccc;
-    font-size: 1rem;
-    cursor: pointer;
-    border-radius: 10px;
-    transition: all 0.25s;
-    text-align: left;
-    white-space: nowrap;
+  display: block;
+  width: 100%;
+  padding: 12px 24px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: all 0.25s;
+  text-align: left;
+  white-space: nowrap;
 }
 
 .floating-menu button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+  background: rgba(var(--secondary-rgb), 0.12);
+  color: var(--text-main);
 }
 
 .floating-menu button.active {
-    background: linear-gradient(135deg, #f9d423, #ff4e50);
-    color: #000;
-    font-weight: 600;
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.25), rgba(var(--secondary-rgb), 0.25));
+  color: var(--text-main);
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.1);
 }
 
 /* Индикатор-ручка для перетаскивания */
 .drag-handle {
-    display: flex;
-    justify-content: center;
-    padding: 6px 0 2px;
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 2px;
 }
 
 .drag-handle span {
-    width: 30px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 2px;
+  width: 30px;
+  height: 4px;
+  background: rgba(var(--primary-rgb), 0.5);
+  border-radius: 2px;
 }
 
 /* ===== АДАПТИВНОСТЬ ===== */
 @media (max-width: 600px) {
-    .greeting h1 {
-        font-size: 2rem;
-    }
-
-    .calendar {
-        padding: 16px;
-    }
-
-    .floating-menu {
-        right: 10px;
-        top: 100px;
-    }
-
-    .floating-menu button {
-        padding: 10px 16px;
-        font-size: 0.9rem;
-    }
+  .greeting h1 { font-size: 2.2rem; }
+  .calendar { padding: 16px; }
+  .floating-menu { right: 10px; top: 100px; }
+  .floating-menu button { padding: 10px 16px; font-size: 0.9rem; }
 }

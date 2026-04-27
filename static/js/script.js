@@ -59,7 +59,7 @@ let currentDate = new Date();
 let displayYear = currentDate.getFullYear();
 let displayMonth = currentDate.getMonth();
 
-function renderCalendar() {
+function renderCalendar(rangeStart = null, rangeEnd = null) {
     const monthYearEl = document.getElementById('month-year');
     const daysContainer = document.getElementById('calendar-days');
 
@@ -69,13 +69,16 @@ function renderCalendar() {
     const firstDay = new Date(displayYear, displayMonth, 1);
     const lastDay = new Date(displayYear, displayMonth + 1, 0);
 
-    // Пн=0 ... Вс=6
     let startWeekday = firstDay.getDay();
     startWeekday = startWeekday === 0 ? 6 : startWeekday - 1;
 
     const today = new Date();
 
-    // Дни предыдущего месяца
+    // 🔹 Нормализуем даты диапазона (убираем время, оставляем только день)
+    const hStart = rangeStart ? new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()) : null;
+    const hEnd   = rangeEnd   ? new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate())   : null;
+
+    // 1️⃣ Дни предыдущего месяца
     const prevMonthLast = new Date(displayYear, displayMonth, 0).getDate();
     for (let i = startWeekday - 1; i >= 0; i--) {
         const span = document.createElement('span');
@@ -84,21 +87,31 @@ function renderCalendar() {
         daysContainer.appendChild(span);
     }
 
-    // Дни текущего месяца
+    // 2️⃣ Дни текущего месяца
     for (let d = 1; d <= lastDay.getDate(); d++) {
         const span = document.createElement('span');
         span.textContent = d;
-        if (
-            d === today.getDate() &&
-            displayMonth === today.getMonth() &&
-            displayYear === today.getFullYear()
-        ) {
+        const currentDate = new Date(displayYear, displayMonth, d);
+
+        // Сегодняшний день
+        if (d === today.getDate() && displayMonth === today.getMonth() && displayYear === today.getFullYear()) {
             span.classList.add('today');
         }
+
+        // 🔹 Проверка попадания в выделенный диапазон
+        if (hStart && hEnd) {
+            const time = currentDate.getTime();
+            if (time >= hStart.getTime() && time <= hEnd.getTime()) {
+                span.classList.add('highlighted');
+                if (time === hStart.getTime()) span.classList.add('range-start');
+                if (time === hEnd.getTime())   span.classList.add('range-end');
+            }
+        }
+
         daysContainer.appendChild(span);
     }
 
-    // Дни следующего месяца
+    // 3️⃣ Дни следующего месяца
     const totalCells = startWeekday + lastDay.getDate();
     const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
     for (let i = 1; i <= remaining; i++) {
@@ -108,20 +121,24 @@ function renderCalendar() {
         daysContainer.appendChild(span);
     }
 }
+const cal = document.getElementById('calendar');
+const rStart = cal.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
+const rEnd   = cal.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
 
+renderCalendar(rStart, rEnd);
+
+// Привяжите к кнопкам переключения месяцев:
 document.getElementById('prev-month').addEventListener('click', () => {
     displayMonth--;
     if (displayMonth < 0) { displayMonth = 11; displayYear--; }
-    renderCalendar();
+    renderCalendar(rStart, rEnd);
 });
 
 document.getElementById('next-month').addEventListener('click', () => {
     displayMonth++;
     if (displayMonth > 11) { displayMonth = 0; displayYear++; }
-    renderCalendar();
+    renderCalendar(rStart, rEnd);
 });
-
-renderCalendar();
 
 // ===========================
 // ПЛАВАЮЩЕЕ МЕНЮ (DRAG & DROP)

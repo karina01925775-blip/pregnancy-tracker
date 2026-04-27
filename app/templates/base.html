@@ -14,7 +14,9 @@
             <h1 id="greeting-text"></h1>
             <p id="greeting-sub"></p>
         </section>
-        <section class="calendar" id="calendar">
+        <section class="calendar" id="calendar"
+         data-range-start="{{ range_start | default('') }}"
+         data-range-end="{{ range_end | default('') }}">
             <div class="calendar-header">
                 <button id="prev-month">‹</button>
                 <h2 id="month-year"></h2>
