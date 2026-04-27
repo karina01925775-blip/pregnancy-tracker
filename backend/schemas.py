@@ -1,72 +1,95 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr
 from datetime import date, datetime
 from typing import Optional, List
+from models import UserRole, PregnancyStatus, ChatType
 
-# ---------------- Онбординг ----------------
-class OnboardingRequest(BaseModel):
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    phone: Optional[str] = None
+    role: UserRole = UserRole.PATIENT
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: UserRole
+    class Config:
+        from_attributes = True
+class PregnancyCreate(BaseModel):
     last_menstruation_date: date
-    age: Optional[int] = None
-    disclaimer_accepted: bool = True
 
-class OnboardingResponse(BaseModel):
-    user_id: int
-    current_week: int
-    due_date: date   # предполагаемая дата родов (40 недель от LMP)
+class PregnancyResponse(BaseModel):
+    id: int
+    last_menstruation_date: date
+    due_date: Optional[date]
+    status: PregnancyStatus
+    notes: Optional[str]
+    class Config:
+        from_attributes = True
 
-# ---------------- Дашборд ----------------
-class DashboardResponse(BaseModel):
-    user_id: int
-    current_week: int
-    summary: str                     # краткая сводка из базы знаний
-    upcoming_events: List[dict]      # ближайшие события
-    quick_actions: dict
-
-# ---------------- Календарь ----------------
 class EventCreate(BaseModel):
-    user_id: int
     title: str
-    description: Optional[str] = None
-    event_date: date
-    week_of_pregnancy: int
-    status: str = "pending"
-
-class EventUpdate(BaseModel):
-    status: str   # completed
-
+    description: Optional[str]
+    event_of_pregnancy: int
 class EventResponse(BaseModel):
     id: int
     title: str
     description: Optional[str]
-    event_date: date
-    week_of_pregnancy: int
+    event_of_pregnancy: int
     status: str
+    class Config:
+        from_attributes = True
 
-# ---------------- Симптомы ----------------
-class SymptomRequest(BaseModel):
-    user_id: int
+class SymptomCreate(BaseModel):
     symptom_text: str
 
 class SymptomResponse(BaseModel):
-    classification: str  # informational, concerning, critical
+    id: int
+    symptom_text: str
+    classification: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class InviteRequest(BaseModel):
+    token: str
+    password: Optional[str] = None
+    full_name: Optional[str] = None
+
+class ChatMessageCreated(BaseModel):
     message: str
-    emergency_actions: Optional[str] = None  # для critical
 
-# ---------------- Тревожный режим ----------------
-class CriticalActionsResponse(BaseModel):
-    actions: List[str]
+class ChatMessageResponse(BaseModel):
+    id: int
+    sender_id: int
+    sender_name: str
+    message: str
+    is_read: bool
+    created_at: datetime
+    triggered_critical: bool = False
+    class Config:
+        from_attributes = True
 
-# ---------------- База знаний ----------------
-class KnowledgeResponse(BaseModel):
-    category: str
-    title: str
-    content: str
+class ChatRoomResponse(BaseModel):
+    id: int
+    chat_type: str
+    participant_name: str
+    participant_id: int
+    last_message: Optional[str]
+    last_message_time: Optional[datetime]
+    unread_count: int
 
-# ---------------- ИИ-ассистент ----------------
-class ChatRequest(BaseModel):
-    user_id: int
-    question: str
+class AIChatRequest(BaseModel):
+    message: str
+    pregnancy_id: Optional[int] = None
 
-class ChatResponse(BaseModel):
-    answer: str
-    critical_triggered: bool = False
+class AIChatResponse(BaseModel):
+    reply: str
+    triggered_critical: bool = False
     emergency_actions: Optional[str] = None
