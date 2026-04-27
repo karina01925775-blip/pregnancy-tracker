@@ -1,0 +1,10 @@
+﻿__pycache__/
+*.pyc
+.venv/
+mama_ryadom.db
+.env
+backend/.env
+.idea/
+.vscode/
+*.log
+.DS_Store

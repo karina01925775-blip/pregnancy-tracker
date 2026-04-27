@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Enum, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database import Base
+from backend.database import Base
 import enum
 
 class UserRole(str, enum.Enum):
@@ -31,26 +31,27 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
-    phone = Column(String, nullable=False)
+    phone = Column(String, nullable=False, default="")
     role = Column(Enum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
     pregnancies = relationship("Pregnancy", back_populates="patient")
-    doctor_relationships = relationship("DoctorPatient", back_populates="doctor")
+
+
+    doctor_relationships = relationship( "DoctorPatient", foreign_keys="DoctorPatient.doctor_id",back_populates="doctor" )
+    patient_relationships = relationship("DoctorPatient", foreign_keys="DoctorPatient.patient_id", back_populates="patient")
     partner_access = relationship("PartnerAccess", back_populates="partner")
     sent_invites = relationship("Invite", foreign_keys="Invite.inviter_id")
 
-    #Чаты
+    # Чаты
     ai_chat_rooms = relationship("ChatRoom", foreign_keys="ChatRoom.user_id")
     sent_messages = relationship("ChatMessage", foreign_keys="ChatMessage.sender_id")
-
 # ================ Беременности ==================
 class Pregnancy(Base):
     __tablename__ = "pregnancies"
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    last_menstruation_date = Column(Date, nullable=False)  # дата последней менструации
+    last_menstruation_date = Column(Date, nullable=False)
     due_date = Column(Date, nullable=True)
     status = Column(Enum(PregnancyStatus), default=PregnancyStatus.ACTIVE)
     notes = Column(Text, nullable=True)
@@ -58,10 +59,10 @@ class Pregnancy(Base):
 
     patient = relationship("User", back_populates="pregnancies")
     events = relationship("Event", back_populates="pregnancy")
-    symptoms = relationship("Symptom", back_populates="pregnancy")
+    # ИСПРАВЛЕНО: было "Symptom", а нужно "SymptomEntry"
+    symptoms = relationship("SymptomEntry", back_populates="pregnancy")
     doctors = relationship("DoctorPatient", back_populates="pregnancy")
     partners = relationship("PartnerAccess", back_populates="pregnancy")
-
 # ================ События =======================
 class Event(Base):
     __tablename__ = "events"
@@ -83,11 +84,10 @@ class SymptomEntry(Base):
     id = Column(Integer, primary_key=True, index=True)
     pregnancy_id = Column(Integer, ForeignKey("pregnancies.id"), nullable=False)
     symptom_text = Column(String, nullable=False)
-    classification = Column(String)   # informational, concerning, critical
+    classification = Column(String)  # informational, concerning, critical
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    pregnancy = relationship("pregnancy", back_populates="symptoms")
-
+    pregnancy = relationship("Pregnancy", back_populates="symptoms")
 # ==================== Врачи-Пациенты ========================
 class DoctorPatient(Base):
     __tablename__ = "doctor_patients"

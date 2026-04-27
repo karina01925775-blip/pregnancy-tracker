@@ -1,8 +1,22 @@
+﻿@'
 {% extends "base.html" %}
 
 {% block title %}Главная страница{% endblock %}
 
 {% block content %}
-<h1>Добро пожаловать в «Мама рядом»</h1>
-<p>Текущая дата: {{ current_date }}</p>
+<div class="auth-buttons" style="display: flex; gap: 15px; justify-content: center; margin-bottom: 30px;">
+    <a href="/login" class="btn-login" style="background: #F4C2C2; padding: 12px 24px; border-radius: 25px; text-decoration: none; color: #4a3f3f; font-weight: bold; transition: all 0.3s;">Вход</a>
+    <a href="/login" class="btn-register" style="background: #E8DCC8; padding: 12px 24px; border-radius: 25px; text-decoration: none; color: #4a3f3f; font-weight: bold; transition: all 0.3s;">Регистрация</a>
+</div>
+
+<h1 style="text-align: center; color: #E5A5B5;">Добро пожаловать в Мама рядом</h1>
+<p style="text-align: center; color: #8A847C;">Текущая дата: {{ current_date }}</p>
+
+<style>
+.btn-login:hover, .btn-register:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+</style>
 {% endblock %}
+'@ | Out-File -FilePath app\templates\index.html -Encoding UTF8 -Force

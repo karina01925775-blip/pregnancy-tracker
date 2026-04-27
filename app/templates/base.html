@@ -59,12 +59,14 @@
     </footer>
 
     <!-- ===== ПЛАВАЮЩЕЕ МЕНЮ ===== -->
-    <nav class="floating-menu" id="floating-menu">
+       <nav class="floating-menu" id="floating-menu">
         <div class="drag-handle"><span></span></div>
         <button class="active" data-page="page-home">🏠 Главная</button>
         <button data-page="page-profile">👤 Профиль</button>
+        <hr style="margin: 8px 0; border-color: rgba(244,194,194,0.3);">
+        <button onclick="window.location.href='/login'" style="background: #F4C2C2; width: 100%; margin-top: 5px;">Вход</button>
+        <button onclick="window.location.href='/login'" style="background: #E8DCC8; width: 100%;">Регистрация</button>
     </nav>
-
     <!-- ===== СКРИПТЫ ===== -->
     <script src="static/js/script.js" defer></script>
 </body>
