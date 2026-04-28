@@ -4,13 +4,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi.responses import HTMLResponse
-from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, date
-from typing import List, Optional
 import secrets
 import hashlib
 
@@ -18,9 +17,9 @@ import hashlib
 from backend.database import get_db, engine
 from backend import models
 from backend.auth import router as auth_router
-from backend.auth import get_current_user, get_current_active_user, get_password_hash
-from backend.services.ai_assistant import classify_user_message, search_knowledge_base, get_emergency_actions
-from backend.services.pregnancy_utils import calculate_week_and_due_date
+from backend.auth import get_current_active_user, get_password_hash
+from backend import classify_user_message, search_knowledge_base, get_emergency_actions
+from backend import calculate_week_and_due_date
 
 # Создаём таблицы
 models.Base.metadata.create_all(bind=engine)

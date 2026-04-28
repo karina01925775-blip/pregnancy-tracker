@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+
 from fastapi.responses import HTMLResponse
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -13,9 +14,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db, engine
 from backend import models
 from backend.auth import router as auth_router
-
-
-
+print("ROUTER IMPORTED:", auth_router)
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -29,12 +28,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(auth_router)
+
+print("\n=== REGISTERED ROUTES ===")
+for route in app.routes:
+    print(f"{route.path} -> {list(route.methods) if hasattr(route, 'methods') else 'Other'}")
+print("=========================\n")
+
+BASE_DIR = Path(__file__).resolve().parent.parent  # Корень проекта
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATES_DIR = BASE_DIR / "app" / "templates"
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Путь к папке шаблонов
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-app.include_router(auth_router)
 
 context = {"name": "Диана", "range_start": "2026-04-05", "range_end": "2026-04-15"}
 
@@ -54,11 +63,11 @@ async def home(request: Request):
 async def about(request: Request):
     return templates.TemplateResponse(request=request, name="about.html")
 
-@app.get("/login", response_class=HTMLResponse)
+@app.get("/auth/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     return templates.TemplateResponse(request=request, name="login.html")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
+@app.get("/auth/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    return templates.TemplateResponse(request=request, name="login.html")
 #Для старта в терминале: uvicorn app.main:app --reload

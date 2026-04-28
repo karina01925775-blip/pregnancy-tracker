@@ -7,6 +7,13 @@
     <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
 </head>
 <body>
+    <!-- 🔹 ВЕРХНИЙ БАННЕР (показывается, если нет токена) -->
+    <div id="auth-banner" class="auth-banner">
+        <span class="auth-banner-icon">🔔</span>
+        <span class="auth-banner-text">Для доступа ко всем функциям необходимо войти в систему</span>
+        <a href="/auth/login" class="auth-banner-btn">Войти</a>
+        <button class="auth-banner-close" onclick="closeBanner()">×</button>
+    </div>
 
     <!-- ===== ГЛАВНАЯ СТРАНИЦА ===== -->
     <main class="page active" id="page-home">
@@ -32,25 +39,26 @@
 
     <!-- ===== СТРАНИЦА ПРОФИЛЯ ===== -->
     <main class="page" id="page-profile">
-        <div class="profile-card">
+        <div class="profile-card" id="profile-content">
             <div class="avatar">👤</div>
-            <h2>Иван Иванов</h2>
-            <p class="email">ivan@example.com</p>
+            <h2>{{ name | default('Гость') }}</h2>
+            <p class="email">{{ email | default('') }}</p>
             <div class="profile-stats">
                 <div class="stat">
                     <div class="number">128</div>
-                    <div class="label">Дней</div>
+                    <div class="label">Первое</div>
                 </div>
                 <div class="stat">
                     <div class="number">42</div>
-                    <div class="label">Задачи</div>
+                    <div class="label">Второе</div>
                 </div>
                 <div class="stat">
                     <div class="number">7</div>
-                    <div class="label">Проекты</div>
+                    <div class="label">Третье</div>
                 </div>
             </div>
         </div>
+        <div class="auth-prompt" id="profile-auth-prompt" style="display: none;"></div>
     </main>
 
     <!-- ===== ПОДВАЛ ===== -->
@@ -59,15 +67,12 @@
     </footer>
 
     <!-- ===== ПЛАВАЮЩЕЕ МЕНЮ ===== -->
-       <nav class="floating-menu" id="floating-menu">
+    <nav class="floating-menu" id="floating-menu">
         <div class="drag-handle"><span></span></div>
         <button class="active" data-page="page-home">🏠 Главная</button>
         <button data-page="page-profile">👤 Профиль</button>
-        <hr style="margin: 8px 0; border-color: rgba(244,194,194,0.3);">
-        <button onclick="window.location.href='/login'" style="background: #F4C2C2; width: 100%; margin-top: 5px;">Вход</button>
-        <button onclick="window.location.href='/login'" style="background: #E8DCC8; width: 100%;">Регистрация</button>
     </nav>
     <!-- ===== СКРИПТЫ ===== -->
-    <script src="static/js/script.js" defer></script>
+    <script src="static/js/home.js" defer></script>
 </body>
 </html>

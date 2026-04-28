@@ -9,7 +9,7 @@ class Token(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=6)
     full_name: str
     phone: Optional[str] = None
     role: UserRole = UserRole.PATIENT

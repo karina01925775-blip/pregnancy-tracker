@@ -16,6 +16,53 @@ menuButtons.forEach(btn => {
     });
 });
 
+checkAuthState();
+
+// Закрытие баннера вручную
+function closeBanner() {
+    const banner = document.getElementById('auth-banner');
+    if (banner) {
+        banner.classList.remove('visible');
+    }
+}
+// Делаем функцию доступной для onclick в HTML
+window.closeBanner = closeBanner;
+
+// ===========================
+// ПРОВЕРКА АВТОРИЗАЦИИ
+// ===========================
+function checkAuthState() {
+    const token = localStorage.getItem('token');
+    const banner = document.getElementById('auth-banner');
+    const profileContent = document.getElementById('profile-content');
+    const profilePrompt = document.getElementById('profile-auth-prompt');
+
+    if (!token) {
+        // 🔴 НЕ АВТОРИЗОВАН
+        if (banner) banner.classList.add('visible');
+        document.body.classList.add('banner-visible');
+
+        if (profileContent) profileContent.style.display = 'none';
+        if (profilePrompt) {
+            profilePrompt.style.display = 'block';
+            profilePrompt.innerHTML = `
+                <h2>🔒 Профиль доступен только после входа</h2>
+                <p>Войдите в аккаунт, чтобы видеть личную статистику и настройки.</p>
+                <a href="/auth/login" class="btn-profile-login">Войти в систему</a>
+            `;
+        }
+    } else {
+        // 🟢 АВТОРИЗОВАН
+        if (banner) banner.classList.remove('visible');
+        document.body.classList.remove('banner-visible');
+
+        if (profilePrompt) profilePrompt.style.display = 'none';
+        if (profileContent) profileContent.style.display = 'block';
+
+        // Опционально: здесь можно сделать fetch('/auth/me') и подставить реальное имя
+    }
+}
+
 // ===========================
 // ПРИВЕТСТВИЕ ПО ВРЕМЕНИ СУТОК
 // ===========================

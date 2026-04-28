@@ -1,7 +1,3 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from datetime import datetime, timedelta
 from typing import Optional
@@ -11,6 +7,7 @@ from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
+import hashlib
 import os
 
 from backend.database import get_db
@@ -22,9 +19,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-this-in-produ
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 дней
 
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -32,13 +27,16 @@ router = APIRouter(prefix="/auth", tags=["Аутентификация"])
 
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Проверка пароля"""
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password):
-    """Хэширование пароля"""
+def get_password_hash(password: str) -> str:
+    """Хэширование пароля с поддержкой любой длины"""
+    # Если пароль > 72 байт, сначала хэшируем его через SHA-256
+    if len(password.encode('utf-8')) > 72:
+        password = hashlib.sha256(password.encode('utf-8')).hexdigest()
     return pwd_context.hash(password)
 
 
@@ -93,6 +91,9 @@ async def get_current_active_user(current_user: models.User = Depends(get_curren
 
 
 # ========== ЭНДПОИНТЫ ==========
+@router.get("/ping")
+async def ping():
+    return {"status": "auth router is alive"}
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
