@@ -1,6 +1,5 @@
 from matplotlib.pyplot import title
 from unicodedata import category
-
 from database import SessionLocal, engine, Base
 import models
 from datetime import date

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Enum, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from backend.database import Base
+from database import Base
 import enum
 
 class UserRole(str, enum.Enum):
@@ -51,8 +51,10 @@ class Pregnancy(Base):
     __tablename__ = "pregnancies"
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    last_menstruation_date = Column(Date, nullable=False)
-    due_date = Column(Date, nullable=True)
+    last_menstruation_date = Column(Date, nullable=False) # дата менструации
+    second_trimester_date = Column(Date, nullable=False) # дата начала второго триместра
+    third_trimester_date = Column(Date, nullable=False) # дата начала третьего триместра
+    due_date = Column(Date, nullable=True) # предполагаемая дата родов
     status = Column(Enum(PregnancyStatus), default=PregnancyStatus.ACTIVE)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

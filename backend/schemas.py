@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import date, datetime
 from typing import Optional, List
-from backend.models import UserRole, PregnancyStatus, ChatType
+from models import UserRole, PregnancyStatus, ChatType
 
 class Token(BaseModel):
     access_token: str
