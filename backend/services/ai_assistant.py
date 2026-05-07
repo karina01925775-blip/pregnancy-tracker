@@ -5,7 +5,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 import re
 from sqlalchemy.orm import Session
 from datetime import date
-from pregnancy_utils import calculate_week_and_due_date
+from backend.services.pregnancy_utils import calculate_week_and_due_date
 from backend.models import Pregnancy, KnowledgeBase
 
 CRITICAL_KEYWORDS = [

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход и регистрация</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
     <div class="card">
@@ -14,7 +14,7 @@
             <button class="tab" onclick="switchTab('register')">Регистрация</button>
         </div>
 
-        <!-- Форма входа (id="login-form" как в JS) -->
+        <!-- Панель входа -->
         <div id="login-panel" class="panel active">
             <h2>Добро пожаловать</h2>
             <div class="input-group">
@@ -29,7 +29,7 @@
             <div id="login_msg" class="msg"></div>
         </div>
 
-        <!-- Форма регистрации (id="register-form" как в JS) -->
+        <!-- Панель регистрации -->
         <div id="register-panel" class="panel">
             <h2>Создать аккаунт</h2>
             <div class="input-group">
@@ -38,7 +38,7 @@
             </div>
             <div class="input-group">
                 <label>Полное имя</label>
-                <input type="text" id="reg_name" placeholder="Диана Диана">
+                <input type="text" id="reg_name" placeholder="Иванова Мария">
             </div>
             <div class="input-group">
                 <label>Телефон</label>
@@ -46,19 +46,17 @@
             </div>
             <div class="input-group">
                 <label>Пароль</label>
-                <input type="password" id="reg_password"
-                   placeholder="минимум 6 символов"
-                   minlength="6"
-                   maxlength="128">
+                <input type="password" id="reg_password" placeholder="минимум 6 символов">
             </div>
             <button class="btn" onclick="doRegister()">Зарегистрироваться</button>
             <div id="register_msg" class="msg"></div>
         </div>
 
-        <hr><a href="/" class="back-link">← На главную</a>
+        <hr>
+        <a href="/" class="back-link">← На главную</a>
     </div>
 
-    <!-- ✅ Путь со слэшем в начале -->
-    <script src="/static/js/login.js" defer></script>
+    <!-- 🔹 Скрипт с абсолютным путём -->
+    <script src="/static/js/login.js"></script>
 </body>
 </html>

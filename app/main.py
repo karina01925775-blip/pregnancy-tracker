@@ -11,11 +11,10 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from backend.database import get_db, engine
-from backend import models
+from backend.database import get_db, engine, Base
 from backend.auth import router as auth_router
 print("ROUTER IMPORTED:", auth_router)
-models.Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -44,6 +43,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # Путь к папке шаблонов
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
+# Создаём таблицы (после app = FastAPI()!)
+Base.metadata.create_all(bind=engine)
 
 context = {"name": "Диана", "range_start": "2026-04-05", "range_end": "2026-04-15"}
 

@@ -8,7 +8,10 @@ from pathlib import Path
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///db.db')
+
+#🔹 Для SQLite нужен специальный флаг, отключаем pool_size
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
 if not DATABASE_URL:
     print("ОШИБКА: DATABASE_URL не найден в файле .env")
@@ -17,9 +20,12 @@ if not DATABASE_URL:
     print("DATABASE_URL=postgresql://postgres:mysecretpassword@localhost:5432/mama_ryadom")
     raise ValueError("DATABASE_URL не задан")
 
-engine = create_engine(DATABASE_URL, pool_size=10, echo=True)
+# Для SQLite
+engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=True)
+#engine = create_engine(DATABASE_URL, pool_size=10, echo=True)
 Base = declarative_base()
-Base.metadata.create_all(bind=engine)
+# Для SQLite закоментчино
+# Base.metadata.create_all(bind=engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

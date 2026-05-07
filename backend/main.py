@@ -14,12 +14,12 @@ import secrets
 import hashlib
 
 # Импорты из бэкенда
-from database import get_db, engine
-import models
-from auth import router as auth_router
-from auth import get_current_active_user, get_password_hash
-from ai_assistant import classify_user_message, search_knowledge_base, get_emergency_actions
-from pregnancy_utils import calculate_week_and_due_date
+from backend.database import get_db, engine
+import backend.models as models
+from backend.auth import router as auth_router
+from backend.auth import get_current_active_user, get_password_hash
+from backend.services.ai_assistant import classify_user_message, search_knowledge_base, get_emergency_actions
+from backend.services.pregnancy_utils import calculate_week_and_due_date
 
 # Создаём таблицы
 models.Base.metadata.create_all(bind=engine)

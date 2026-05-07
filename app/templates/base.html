@@ -35,6 +35,24 @@
             </div>
             <div class="calendar-days" id="calendar-days"></div>
         </section>
+        <!-- 🔹 ПАНЕЛЬ РЕЗУЛЬТАТОВ ДНЯ (скрыта по умолчанию) -->
+        <div id="day-results-panel" class="day-results-panel">
+            <div class="day-results-header">
+                <h3 id="results-date">📅 15 апреля 2026</h3>
+                <button class="close-results" onclick="closeResultsPanel()">✕</button>
+            </div>
+
+            <!-- Заглушка, если нет данных -->
+            <div id="results-empty" class="results-empty">
+                <p>📭 Нет результатов тестов за этот день</p>
+                <button class="btn-add-test" onclick="openTestModal()">+ Добавить результат</button>
+            </div>
+
+            <!-- Контейнер для динамических результатов -->
+            <div id="results-content" class="results-content" style="display: none;">
+                <!-- Сюда JS будет вставлять карточки тестов -->
+            </div>
+        </div>
     </main>
 
     <!-- ===== СТРАНИЦА ПРОФИЛЯ ===== -->
@@ -63,7 +81,7 @@
 
     <!-- ===== ПОДВАЛ ===== -->
     <footer>
-        <p>&copy; 2026 Мой Сайт. Сделано с ❤️</p>
+        <p>&copy; 2026 Мама Рядом.</p>
     </footer>
 
     <!-- ===== ПЛАВАЮЩЕЕ МЕНЮ ===== -->

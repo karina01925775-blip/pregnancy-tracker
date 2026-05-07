@@ -18,7 +18,9 @@ if not DATABASE_URL:
 print(f"Подключение к БД: {DATABASE_URL}")
 
 try:
-    engine = create_engine(DATABASE_URL)
+    # Для SQLite
+    connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    engine = create_engine(DATABASE_URL, connect_args=connect_args)
     inspector = inspect(engine)
     tables = inspector.get_table_names()
 

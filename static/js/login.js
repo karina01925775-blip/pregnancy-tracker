@@ -56,6 +56,7 @@ async function doLogin() {
             msg.className = 'msg error';
         }
     } catch (e) {
+        console.log(e);
         msg.innerHTML = 'Ошибка соединения';
         msg.className = 'msg error';
     }
@@ -107,6 +108,7 @@ async function doRegister() {
             msg.className = 'msg error';
         }
     } catch (e) {
+        console.log(e);
         msg.innerHTML = 'Ошибка соединения';
         msg.className = 'msg error';
     }

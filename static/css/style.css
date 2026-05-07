@@ -657,6 +657,167 @@ footer a:hover {
     }
 }
 
+/* ===== ПАНЕЛЬ РЕЗУЛЬТАТОВ ДНЯ ===== */
+.day-results-panel {
+    width: 100%;
+    max-width: 500px;
+    margin: 20px auto 0;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transform: translateY(20px);
+    opacity: 0;
+    max-height: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.day-results-panel.visible {
+    transform: translateY(0);
+    opacity: 1;
+    max-height: 600px;
+    margin-top: 30px;
+}
+
+.day-results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(var(--primary-rgb), 0.15);
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.day-results-header h3 {
+    color: var(--text-main);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.close-results {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    line-height: 1;
+}
+
+.close-results:hover {
+    background: rgba(var(--secondary-rgb), 0.2);
+    color: var(--text-main);
+}
+
+.results-empty {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.results-empty p {
+    margin: 0 0 16px;
+    font-size: 0.95rem;
+}
+
+.btn-add-test {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #3e3c38;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-add-test:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.25);
+}
+
+.results-content {
+    padding: 16px 20px 20px;
+}
+
+/* Карточка результата теста */
+.test-result-card {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(var(--secondary-rgb), 0.3);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.test-result-card:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(var(--secondary-rgb), 0.15);
+}
+
+.test-info h4 {
+    color: var(--text-main);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 4px;
+}
+
+.test-info p {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.test-value {
+    text-align: right;
+}
+
+.test-value .value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--secondary);
+    display: block;
+}
+
+.test-value .unit {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.test-value .status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+.test-value .status.normal {
+    background: rgba(163, 177, 138, 0.2);
+    color: #5a6b54;
+}
+
+.test-value .status.warning {
+    background: rgba(244, 194, 194, 0.3);
+    color: #8b5a5a;
+}
+
+.test-value .status.critical {
+    background: rgba(231, 76, 60, 0.2);
+    color: #c0392b;
+}
+
 /* ===== КАРТОЧКА (форма / виджет) ===== */
 .card {
     background: rgba(255, 255, 255, 0.95);

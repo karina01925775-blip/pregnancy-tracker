@@ -19,7 +19,10 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-this-in-produ
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 дней
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256", "bcrypt"],
+    default="pbkdf2_sha256",
+    pbkdf2_sha256__default_rounds=30000)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -34,9 +37,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Хэширование пароля с поддержкой любой длины"""
-    # Если пароль > 72 байт, сначала хэшируем его через SHA-256
-    if len(password.encode('utf-8')) > 72:
-        password = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    print(f"Password length: {len(password.encode('utf-8'))} bytes")
     return pwd_context.hash(password)
 
 

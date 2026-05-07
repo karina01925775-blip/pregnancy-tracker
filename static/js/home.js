@@ -64,6 +64,98 @@ function checkAuthState() {
 }
 
 // ===========================
+// КЛИК ПО ДНЮ КАЛЕНДАРЯ
+// ===========================
+document.getElementById('calendar-days').addEventListener('click', (e) => {
+    if (e.target.tagName !== 'SPAN') return;
+
+    const day = parseInt(e.target.textContent);
+    if (!day || e.target.classList.contains('other-month')) return;
+
+    // Показываем панель результатов
+    showDayResults(displayYear, displayMonth, day);
+});
+
+function showDayResults(year, month, day) {
+    const panel = document.getElementById('day-results-panel');
+    const dateEl = document.getElementById('results-date');
+    const emptyEl = document.getElementById('results-empty');
+    const contentEl = document.getElementById('results-content');
+
+    // Форматируем дату для заголовка
+    const date = new Date(year, month, day);
+    const options = { day: 'numeric', month: 'long', year: 'numeric' };
+    dateEl.textContent = `📅 ${date.toLocaleDateString('ru-RU', options)}`;
+
+    // 🔹 Здесь можно загрузить реальные данные с бэкенда:
+    // fetch(`/api/results?date=${year}-${month+1}-${day}`)...
+
+    // Для демо — генерируем тестовые данные
+    const mockResults = getMockTestResults(year, month, day);
+
+    if (mockResults.length === 0) {
+        emptyEl.style.display = 'block';
+        contentEl.style.display = 'none';
+    } else {
+        emptyEl.style.display = 'none';
+        contentEl.style.display = 'block';
+        contentEl.innerHTML = mockResults.map(renderTestCard).join('');
+    }
+
+    // Показываем панель с анимацией
+    panel.classList.add('visible');
+
+    // Плавный скролл к панели (если не видно)
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeResultsPanel() {
+    const panel = document.getElementById('day-results-panel');
+    panel.classList.remove('visible');
+}
+
+// 🔹 Вспомогательные функции для демо-данных
+function getMockTestResults(year, month, day) {
+    // В реальном проекте здесь будет fetch к вашему API
+    // Для примера возвращаем данные только для "сегодняшнего" дня
+    const today = new Date();
+    if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+        return [
+            { name: 'ХГЧ', value: 1250, unit: 'мЕд/мл', status: 'normal', note: '5-6 недель' },
+            { name: 'Прогестерон', value: 28.4, unit: 'нг/мл', status: 'normal', note: 'в пределах нормы' },
+            { name: 'ТТГ', value: 3.2, unit: 'мЕд/л', status: 'warning', note: 'контроль через 2 недели' }
+        ];
+    }
+    // Для других дней — пусто (или можно сгенерировать случайные)
+    return [];
+}
+
+function renderTestCard(test) {
+    return `
+        <div class="test-result-card">
+            <div class="test-info">
+                <h4>${test.name}</h4>
+                <p>${test.note || ''}</p>
+            </div>
+            <div class="test-value">
+                <span class="value">${test.value}</span>
+                <span class="unit">${test.unit}</span>
+                ${test.status ? `<span class="status ${test.status}">${getStatusText(test.status)}</span>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function getStatusText(status) {
+    const map = { normal: 'Норма', warning: 'Контроль', critical: 'Внимание' };
+    return map[status] || '';
+}
+
+// Делаем функции доступными для onclick в HTML
+window.closeResultsPanel = closeResultsPanel;
+window.openTestModal = () => alert('Функция добавления теста будет доступна в следующей версии 👶');
+
+// ===========================
 // ПРИВЕТСТВИЕ ПО ВРЕМЕНИ СУТОК
 // ===========================
 function updateGreeting() {
