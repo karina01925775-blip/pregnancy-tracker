@@ -35,10 +35,10 @@ for route in app.routes:
 print("=========================\n")
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # Корень проекта
-STATIC_DIR = BASE_DIR / "static"
+STATIC_DIR = BASE_DIR / "app/static"
 TEMPLATES_DIR = BASE_DIR / "app" / "templates"
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/app/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Путь к папке шаблонов
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -46,18 +46,11 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 # Создаём таблицы (после app = FastAPI()!)
 Base.metadata.create_all(bind=engine)
 
-context = {"name": "Диана", "range_start": "2026-04-05", "range_end": "2026-04-15"}
-
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse(
         request=request,
-        name="index.html",
-        context={
-            "name": context["name"],
-            "range_start": context["range_start"],
-            "range_end": context["range_end"]
-        }
+        name="index.html"
     )
 
 @app.get("/about", response_class=HTMLResponse)

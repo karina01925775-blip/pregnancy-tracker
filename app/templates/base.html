@@ -34,6 +34,16 @@
                 <span>Пт</span><span>Сб</span><span>Вс</span>
             </div>
             <div class="calendar-days" id="calendar-days"></div>
+            <div id="preg-setup-card" class="setup-card hidden">
+                <div class="setup-card-header">
+                    <h3>Установите срок беременности</h3>
+                    <p>Выберите первый день последней менструации для расчёта срока и ПДР</p>
+                </div>
+                <div class="setup-card-body">
+                    <input type="date" id="preg-start-date" required>
+                    <button id="btn-set-pregnancy" class="btn-primary">Установить дату беременности</button>
+                </div>
+            </div>
         </section>
         <!-- 🔹 ПАНЕЛЬ РЕЗУЛЬТАТОВ ДНЯ (скрыта по умолчанию) -->
         <div id="day-results-panel" class="day-results-panel">
@@ -62,17 +72,9 @@
             <h2>{{ name | default('Гость') }}</h2>
             <p class="email">{{ email | default('') }}</p>
             <div class="profile-stats">
-                <div class="stat">
-                    <div class="number">128</div>
-                    <div class="label">Первое</div>
-                </div>
-                <div class="stat">
-                    <div class="number">42</div>
-                    <div class="label">Второе</div>
-                </div>
-                <div class="stat">
-                    <div class="number">7</div>
-                    <div class="label">Третье</div>
+                <div class="stat" id="preg-stat-container">
+                    <div class="number" id="preg-days">--</div>
+                    <div class="label">Срок беременности</div>
                 </div>
             </div>
         </div>
@@ -91,6 +93,6 @@
         <button data-page="page-profile">👤 Профиль</button>
     </nav>
     <!-- ===== СКРИПТЫ ===== -->
-    <script src="static/js/home.js" defer></script>
+    <script src="app/static/js/home.js" defer></script>
 </body>
 </html>

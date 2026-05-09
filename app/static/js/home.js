@@ -36,6 +36,14 @@ function checkAuthState() {
     const banner = document.getElementById('auth-banner');
     const profileContent = document.getElementById('profile-content');
     const profilePrompt = document.getElementById('profile-auth-prompt');
+    const setupCard = document.getElementById('preg-setup-card');
+    const dateInput = document.getElementById('preg-start-date');
+    const setBtn = document.getElementById('btn-set-pregnancy');
+
+    // Ограничиваем выбор только прошедшими/текущими днями
+    if (dateInput) {
+        dateInput.max = new Date().toISOString().split("T")[0];
+    }
 
     if (!token) {
         // 🔴 НЕ АВТОРИЗОВАН
@@ -60,9 +68,86 @@ function checkAuthState() {
         if (profileContent) profileContent.style.display = 'block';
 
         // Опционально: здесь можно сделать fetch('/auth/me') и подставить реальное имя
+        // Загружаем данные дашборда, чтобы узнать, есть ли беременность
+        fetch('/api/dashboard', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            const hasPregnancy = data.active_pregnancy && data.active_pregnancy.last_menstruation_date;
+
+            if (setupCard) {
+                if (hasPregnancy) {
+                    setupCard.classList.remove('visible');
+                    setupCard.classList.add('hidden');
+                } else {
+                    setupCard.classList.remove('hidden');
+                    setupCard.classList.add('visible');
+                }
+            }
+
+            // Обновляем статистику дней (если у вас уже есть логика вывода срока)
+            if (hasPregnancy && document.getElementById('preg-days')) {
+                const lmp = new Date(data.active_pregnancy.last_menstruation_date);
+                const days = Math.floor((new Date() - lmp) / (1000 * 60 * 60 * 24));
+                const weeks = Math.floor(days / 7);
+                document.getElementById('preg-days').textContent = `${days} (${weeks})`;
+                document.querySelector('#preg-stat-container .label').textContent = 'Дней (недель)';
+            }
+
+            if (hasPregnancy) {
+                updateCalendarFromDB(
+                    data.active_pregnancy.last_menstruation_date,
+                    data.active_pregnancy.due_date
+                );
+            }
+        })
+        .catch(err => console.warn('Не удалось загрузить профиль:', err));
+
+        // Обработчик кнопки сохранения
+        if (setBtn && !setBtn.dataset.initialized) {
+            setBtn.dataset.initialized = 'true';
+            setBtn.addEventListener('click', async () => {
+                const selectedDate = dateInput.value;
+                if (!selectedDate) {
+                    alert('Пожалуйста, выберите дату');
+                    return;
+                }
+
+                setBtn.disabled = true;
+                setBtn.textContent = 'Сохранение...';
+
+                try {
+                    const res = await fetch('/api/pregnancies', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ last_menstruation_date: selectedDate })
+                    });
+
+                    if (res.ok) {
+                        setupCard.classList.remove('visible');
+                        setupCard.classList.add('hidden');
+                        alert('✅ Дата успешно установлена! Срок пересчитан.');
+                        // Перезагружаем дашборд для обновления статистики
+                        checkAuthState();
+                    } else {
+                        const errData = await res.json();
+                        alert(errData.detail || 'Ошибка сохранения');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Ошибка соединения');
+                } finally {
+                    setBtn.disabled = false;
+                    setBtn.textContent = 'Установить дату беременности';
+                }
+            });
+        }
     }
 }
-
 // ===========================
 // КЛИК ПО ДНЮ КАЛЕНДАРЯ
 // ===========================
@@ -187,6 +272,25 @@ function updateGreeting() {
 updateGreeting();
 
 // ===========================
+// ФУНКЦИЯ ОБНОВЛЕНИЯ КАЛЕНДАРЯ
+// ===========================
+function updateCalendarFromDB(startDateStr, endDateStr) {
+    const cal = document.getElementById('calendar');
+    if (!cal) return;
+
+    // Обновляем data-атрибуты для совместимости
+    cal.dataset.rangeStart = startDateStr;
+    cal.dataset.rangeEnd = endDateStr;
+
+    // Парсим даты
+    const rStart = new Date(startDateStr + 'T00:00:00');
+    const rEnd = new Date(endDateStr + 'T00:00:00');
+
+    // Перерисовываем календарь с новым диапазоном
+    renderCalendar(rStart, rEnd);
+}
+
+// ===========================
 // КАЛЕНДАРЬ
 // ===========================
 const monthNames = [
@@ -306,6 +410,41 @@ document.addEventListener('mousemove', (e) => {
     floatingMenu.style.left = x + 'px';
     floatingMenu.style.top = y + 'px';
     floatingMenu.style.right = 'auto';
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const cal = document.getElementById('calendar');
+    if (cal) {
+        const rStart = cal.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
+        const rEnd   = cal.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
+        renderCalendar(rStart, rEnd);
+    }
+
+    const prevBtn = document.getElementById('prev-month');
+    const nextBtn = document.getElementById('next-month');
+
+    // Кнопки переключения месяцев
+    prevBtn?.addEventListener('click', () => {
+        displayMonth--;
+        if (displayMonth < 0) { displayMonth = 11; displayYear--; }
+        // При переключении месяцев нужно снова передать текущий диапазон из БД, если он есть
+        const cal = document.getElementById('calendar');
+        const rStart = cal?.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
+        const rEnd   = cal?.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
+        renderCalendar(rStart, rEnd);
+    });
+
+    nextBtn?.addEventListener('click', () => {
+        displayMonth++;
+        if (displayMonth > 11) { displayMonth = 0; displayYear++; }
+        const cal = document.getElementById('calendar');
+        const rStart = cal?.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
+        const rEnd   = cal?.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
+        renderCalendar(rStart, rEnd);
+    });
+
+    checkAuthState();
+    updateGreeting();
 });
 
 document.addEventListener('mouseup', () => {

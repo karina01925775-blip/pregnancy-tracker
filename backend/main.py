@@ -36,11 +36,11 @@ app.add_middleware(
 )
 
 # Подключаем статику
-static_path = Path(__file__).parent / "static"
+static_path = Path(__file__).parent / "app/static"
 if not static_path.exists():
-    static_path = Path(__file__).parent.parent / "static"
+    static_path = Path(__file__).parent.parent / "app/static"
 if static_path.exists():
-    app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+    app.mount("/app/static", StaticFiles(directory=str(static_path)), name="static")
 
 # Подключаем шаблоны
 templates = Jinja2Templates(directory="app/templates")
@@ -204,21 +204,46 @@ def create_pregnancy(
         data: dict,
         current_user: models.User = Depends(get_current_active_user),
         db: Session = Depends(get_db)
-):
+    ):
     if current_user.role != models.UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Только пациентки могут создавать беременности")
 
-    due_date = datetime.strptime(data["last_menstruation_date"], "%Y-%m-%d").date() + timedelta(days=280)
+    # 1. Получаем строку даты из запроса
+    lmp_str = data.get("last_menstruation_date")
+    if not lmp_str:
+        raise HTTPException(status_code=400, detail="Укажите дату начала беременности")
+
+    # 2. Преобразуем строку 'YYYY-MM-DD' в объект datetime.date
+    try:
+        lmp_date = datetime.strptime(lmp_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный формат даты. Используйте ГГГГ-ММ-ДД")
+
+    # 3. Рассчитываем дату родов (LMP + 280 дней)
+    due_date = lmp_date + timedelta(days=280)
+
+    # 4. Рассчитываем даты триместров (опционально, но лучше заполнить, чтобы не было NULL)
+    second_trimester = lmp_date + timedelta(days=91)  # ~13 недель
+    third_trimester = lmp_date + timedelta(days=182)  # ~26 недель
+
     pregnancy = models.Pregnancy(
         patient_id=current_user.id,
-        last_menstruation_date=data["last_menstruation_date"],
-        due_date=due_date
+        last_menstruation_date=lmp_date,  # <-- Теперь это объект date
+        second_trimester_date=second_trimester,
+        third_trimester_date=third_trimester,
+        due_date=due_date,
+        status=models.PregnancyStatus.ACTIVE
     )
+
     db.add(pregnancy)
     db.commit()
     db.refresh(pregnancy)
-    return {"id": pregnancy.id, "due_date": pregnancy.due_date, "status": pregnancy.status}
 
+    return {
+        "id": pregnancy.id,
+        "due_date": pregnancy.due_date.isoformat(),
+        "status": pregnancy.status.value
+    }
 
 @app.get("/api/pregnancies")
 def get_pregnancies(
@@ -519,6 +544,7 @@ def dashboard(
         "active_pregnancy": {
             "id": active_pregnancy.id,
             "current_week": current_week,
+            "last_menstruation_date": active_pregnancy.last_menstruation_date,
             "due_date": active_pregnancy.due_date
         } if active_pregnancy else None
     }
