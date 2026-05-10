@@ -18,6 +18,7 @@ from backend.database import get_db, engine
 import backend.models as models
 from backend.auth import router as auth_router
 from backend.auth import get_current_active_user, get_password_hash
+from backend.auth import create_access_token
 from backend.services.ai_assistant import classify_user_message, search_knowledge_base, get_emergency_actions
 from backend.services.pregnancy_utils import calculate_week_and_due_date
 
@@ -77,9 +78,12 @@ async def home(request: Request):
         }
     )
 
-
-@app.get("/login", response_class=HTMLResponse)
+@app.get("/auth/login", response_class=HTMLResponse)
 async def login_page(request: Request):
+    return templates.TemplateResponse(request=request, name="login.html")
+
+@app.get("/auth/register", response_class=HTMLResponse)
+async def register_page(request: Request):
     return templates.TemplateResponse(request=request, name="login.html")
 
 
@@ -128,74 +132,150 @@ def create_invite(
     return {"invite_link": create_invite_link(token), "expires_at": expires_at}
 
 
+# ===========================
+# УПРАВЛЕНИЕ ПРИГЛАШЕНИЯМИ ПАРТНЁРА
+# ===========================
+@app.get("/api/partner-invites")
+def get_partner_invites(
+        current_user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    if current_user.role != models.UserRole.PATIENT:
+        raise HTTPException(status_code=403, detail="Доступ только для пациенток")
+
+    pregnancy = db.query(models.Pregnancy).filter(
+        models.Pregnancy.patient_id == current_user.id,
+        models.Pregnancy.status == models.PregnancyStatus.ACTIVE
+    ).first()
+    if not pregnancy:
+        raise HTTPException(status_code=400, detail="Активная беременность не найдена")
+
+    invites = db.query(models.Invite).filter(
+        models.Invite.inviter_id == current_user.id,
+        models.Invite.pregnancy_id == pregnancy.id,
+        models.Invite.role == models.UserRole.PARTNER,
+        models.Invite.status == models.InviteStatus.PENDING
+    ).all()
+
+    base_url = str(request.base_url) if 'request' in locals() else "http://127.0.0.1:8000/"
+    return [{
+        "id": inv.id,
+        "token": inv.token,
+        "status": inv.status.value,
+        "expires_at": inv.expires_at.isoformat(),
+        "link": f"{base_url.rstrip('/')}/auth/register?token={inv.token}"
+    } for inv in invites]
+
+
+@app.post("/api/partner-invites")
+def create_partner_invite(
+        data: dict = None,
+        current_user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    if current_user.role != models.UserRole.PATIENT:
+        raise HTTPException(status_code=403, detail="Доступ только для пациенток")
+
+    pregnancy = db.query(models.Pregnancy).filter(
+        models.Pregnancy.patient_id == current_user.id,
+        models.Pregnancy.status == models.PregnancyStatus.ACTIVE
+    ).first()
+    if not pregnancy:
+        raise HTTPException(status_code=400, detail="Активная беременность не найдена")
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(days=7)
+    invited_email = data.get("email", f"partner_{token}@invite.mama-ryadom.ru")
+
+    invite = models.Invite(
+        token=token,
+        inviter_id=current_user.id,
+        invited_email=invited_email,
+        role=models.UserRole.PARTNER,
+        pregnancy_id=pregnancy.id,
+        status=models.InviteStatus.PENDING,
+        expires_at=expires_at
+    )
+    db.add(invite)
+    db.commit()
+    db.refresh(invite)
+
+    base_url = "http://127.0.0.1:8000/"  # Замените на ваш домен в продакшене
+    return {"id": invite.id, "token": invite.token,
+            "link": f"{base_url.rstrip('/')}/auth/register?token={invite.token}",
+            "expires_at": invite.expires_at.isoformat()}
+
+@app.delete("/api/partner-invites/{invite_id}")
+def revoke_partner_invite(
+        invite_id: int,
+        current_user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    invite = db.query(models.Invite).filter(
+        models.Invite.id == invite_id,
+        models.Invite.inviter_id == current_user.id
+    ).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Приглашение не найдено")
+    if invite.status == models.InviteStatus.ACCEPTED:
+        raise HTTPException(status_code=400, detail="Нельзя отозвать уже принятое приглашение")
+
+    invite.status = models.InviteStatus.EXPIRED
+    db.commit()
+    return {"message": "Приглашение успешно отозвано"}
+
 @app.post("/api/invite/accept")
 def accept_invite(
         data: dict,
         db: Session = Depends(get_db)
 ):
+    token = data.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="Токен не указан")
+
     invite = db.query(models.Invite).filter(
-        models.Invite.token == data["token"],
+        models.Invite.token == token,
         models.Invite.status == models.InviteStatus.PENDING
     ).first()
-
     if not invite:
-        raise HTTPException(status_code=404, detail="Приглашение не найдено")
+        raise HTTPException(status_code=404, detail="Приглашение не найдено или уже использовано")
     if invite.expires_at < datetime.utcnow():
         invite.status = models.InviteStatus.EXPIRED
         db.commit()
         raise HTTPException(status_code=400, detail="Срок приглашения истёк")
 
-    existing_user = db.query(models.User).filter(models.User.email == invite.invited_email).first()
+    if invite.role == models.UserRole.PARTNER:
+        full_name = data.get("full_name", "Партнёр")
+        # Генерируем технические учётные данные (пользователь их не видит)
+        tech_email = f"partner_{token[:8]}_{invite.id}@invite.mama-ryadom.ru"
+        tech_password = secrets.token_urlsafe(12) + "A1!"
 
-    if invite.role == models.UserRole.DOCTOR:
-        if not existing_user:
-            raise HTTPException(status_code=400, detail=f"Врач с почтой {invite.invited_email} не зарегистрирован")
-
-        doctor_link = models.DoctorPatient(
-            doctor_id=existing_user.id,
-            patient_id=invite.inviter_id,
-            pregnancy_id=invite.pregnancy_id
-        )
-        db.add(doctor_link)
-        invite.status = models.InviteStatus.ACCEPTED
-        db.commit()
-        return {"message": "Врач добавлен к беременности"}
-
-    elif invite.role == models.UserRole.PARTNER:
-        if existing_user:
-            access = models.PartnerAccess(
-                partner_id=existing_user.id,
-                pregnancy_id=invite.pregnancy_id,
-                can_view=True
+        user = db.query(models.User).filter(models.User.email == tech_email).first()
+        if not user:
+            user = models.User(
+                email=tech_email,
+                hashed_password=get_password_hash(tech_password),
+                full_name=full_name,
+                phone="",
+                role=models.UserRole.PARTNER
             )
-            db.add(access)
-        else:
-            if not data.get("password") or not data.get("full_name"):
-                raise HTTPException(status_code=400, detail="Укажите password и full_name")
+            db.add(user)
+            db.flush()  # Получаем user.id
 
-            hashed = get_password_hash(data["password"])
-            new_partner = models.User(
-                email=invite.invited_email,
-                hashed_password=hashed,
-                full_name=data["full_name"],
-                role=models.UserRole.PARTNER,
-                phone=""
-            )
-            db.add(new_partner)
-            db.flush()
-
-            access = models.PartnerAccess(
-                partner_id=new_partner.id,
-                pregnancy_id=invite.pregnancy_id,
-                can_view=True
-            )
-            db.add(access)
+        # Создаём доступ к беременности
+        existing = db.query(models.PartnerAccess).filter_by(
+            partner_id=user.id, pregnancy_id=invite.pregnancy_id
+        ).first()
+        if not existing:
+            db.add(models.PartnerAccess(partner_id=user.id, pregnancy_id=invite.pregnancy_id, can_view=True))
 
         invite.status = models.InviteStatus.ACCEPTED
         db.commit()
-        return {"message": "Доступ для партнёра добавлен"}
 
-    raise HTTPException(status_code=400, detail="Неверный тип приглашения")
+        # Возвращаем JWT → фронтенд сразу сохранит его и войдёт в систему
+        return {"access_token": create_access_token(data={"sub": str(user.id)}), "token_type": "bearer"}
+
+    raise HTTPException(status_code=400, detail="Этот тип приглашения обрабатывается иначе")
 
 
 # ---------- Беременности ----------
@@ -523,16 +603,28 @@ def dashboard(
         db: Session = Depends(get_db)
 ):
     active_pregnancy = None
+    current_week = None
+    followed_patient_name = None
+
     if current_user.role == models.UserRole.PATIENT:
         active_pregnancy = db.query(models.Pregnancy).filter(
             models.Pregnancy.patient_id == current_user.id,
             models.Pregnancy.status == models.PregnancyStatus.ACTIVE
         ).first()
+        if active_pregnancy:
+            current_week = max(1, ((date.today() - active_pregnancy.last_menstruation_date).days // 7) + 1)
 
-    current_week = None
-    if active_pregnancy:
-        days_since_lmp = (date.today() - active_pregnancy.last_menstruation_date).days
-        current_week = max(1, (days_since_lmp // 7) + 1)
+    elif current_user.role == models.UserRole.PARTNER:
+        access = db.query(models.PartnerAccess).filter(
+            models.PartnerAccess.partner_id == current_user.id
+        ).first()
+        if access:
+            pregnancy = db.query(models.Pregnancy).filter(models.Pregnancy.id == access.pregnancy_id).first()
+            if pregnancy:
+                active_pregnancy = pregnancy
+                patient = db.query(models.User).filter(models.User.id == pregnancy.patient_id).first()
+                followed_patient_name = patient.full_name if patient else "Не указано"
+                current_week = max(1, ((date.today() - pregnancy.last_menstruation_date).days // 7) + 1)
 
     return {
         "user": {
@@ -546,7 +638,8 @@ def dashboard(
             "current_week": current_week,
             "last_menstruation_date": active_pregnancy.last_menstruation_date,
             "due_date": active_pregnancy.due_date
-        } if active_pregnancy else None
+        } if active_pregnancy else None,
+        "followed_patient_name": followed_patient_name
     }
 
 

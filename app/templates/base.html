@@ -77,7 +77,45 @@
                     <div class="label">Срок беременности</div>
                 </div>
             </div>
+            <div id="partner-invite-section" class="invite-section" style="display:none;">
+                <h3>👥 Пригласить партнёра</h3>
+                <p class="invite-desc">Отправьте ссылку близкому человеку, чтобы он мог следить за ходом беременности в режиме просмотра.</p>
+
+                <div id="no-invite-msg">
+                    <button onclick="generateInvite()" class="btn-invite-generate">✨ Сгенерировать ссылку</button>
+                </div>
+
+                <div id="active-invite-box" style="display:none;">
+                    <div class="input-group">
+                        <input type="text" id="invite-link-input" readonly onclick="this.select()">
+                    </div>
+                    <div class="invite-actions">
+                        <button onclick="copyInviteLink()" class="btn-invite-action">📋 Копировать</button>
+                        <button onclick="regenerateInvite()" class="btn-invite-action">🔄 Обновить</button>
+                        <button onclick="revokeInvite(currentInviteId)" class="btn-invite-action btn-danger">🗑 Удалить</button>
+                    </div>
+                    <p class="expire-text" id="invite-expire"></p>
+                </div>
+                <div id="invite-msg" class="invite-msg"></div>
+            </div>
         </div>
+        <div id="partner-profile" class="profile-card hidden">
+            <div class="avatar partner-avatar">👥</div>
+            <h2 id="partner-name"></h2>
+            <p class="role-badge">Режим наблюдения</p>
+            <div class="partner-info">
+                <span class="icon">👀</span>
+                <span>Слежу за:</span>
+                <strong id="following-name">—</strong>
+            </div>
+        </div>
+        <button class="logout-btn" onclick="logout()" aria-label="Выйти из аккаунта" title="Выйти">
+            <svg class="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+        </button>
         <div class="auth-prompt" id="profile-auth-prompt" style="display: none;"></div>
     </main>
 

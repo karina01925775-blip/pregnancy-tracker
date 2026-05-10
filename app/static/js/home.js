@@ -67,6 +67,8 @@ function checkAuthState() {
         if (profilePrompt) profilePrompt.style.display = 'none';
         if (profileContent) profileContent.style.display = 'block';
 
+        loadPartnerInvites();
+
         // Опционально: здесь можно сделать fetch('/auth/me') и подставить реальное имя
         // Загружаем данные дашборда, чтобы узнать, есть ли беременность
         fetch('/api/dashboard', {
@@ -74,7 +76,12 @@ function checkAuthState() {
         })
         .then(res => res.json())
         .then(data => {
+            const role = data.user.role;
             const hasPregnancy = data.active_pregnancy && data.active_pregnancy.last_menstruation_date;
+
+            // 🔹 1. Применяем класс роли к body для CSS
+            document.body.classList.remove('is-patient', 'is-partner');
+            document.body.classList.add(`is-${role}`);
 
             if (setupCard) {
                 if (hasPregnancy) {
@@ -84,6 +91,30 @@ function checkAuthState() {
                     setupCard.classList.remove('hidden');
                     setupCard.classList.add('visible');
                 }
+            }
+
+            if (role === 'partner') {
+                // Скрываем все кнопки добавления/редактирования
+                document.querySelectorAll('#btn-set-pregnancy, .btn-add-test, .edit-btn, [data-action="add"]').forEach(el => el.style.display = 'none');
+
+                // Показываем профиль партнёра, скрываем статистику пациента
+                const partnerBlock = document.getElementById('partner-profile');
+                const patientStats = document.getElementById('profile-stats');
+                const pregSetupCard = document.getElementById('preg-setup-card');
+
+                if (partnerBlock) {
+                    document.getElementById('partner-name').textContent = data.user.full_name;
+                    document.getElementById('following-name').textContent = data.followed_patient_name || 'Не назначен';
+                    partnerBlock.style.display = 'block';
+                }
+                if (patientStats) patientStats.style.display = 'none';
+                if (pregSetupCard) pregSetupCard.style.display = 'none';
+
+                // Обновляем календарь данными беременности пациентки
+                if (hasPregnancy) {
+                    updateCalendarFromDB(data.active_pregnancy.last_menstruation_date, data.active_pregnancy.due_date);
+                }
+                return; // Дальше код для пациента не выполняется
             }
 
             // Обновляем статистику дней (если у вас уже есть логика вывода срока)
@@ -479,3 +510,110 @@ document.addEventListener('touchend', () => {
     isDragging = false;
     floatingMenu.classList.remove('dragging');
 });
+
+// ===========================
+// ЛОГИКА ПРИГЛАШЕНИЙ ПАРТНЁРА
+// ===========================
+let currentInviteId = null;
+
+function loadPartnerInvites() {
+    const section = document.getElementById('partner-invite-section');
+    if (!section) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) { section.style.display = 'none'; return; }
+
+    fetch('/api/partner-invites', {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+        if (res.status === 403) { section.style.display = 'none'; return; }
+        return res.json();
+    })
+    .then(invites => {
+        if (!invites) return;
+        section.style.display = 'block';
+        if (invites.length > 0) showActiveInvite(invites[0]);
+        else {
+            document.getElementById('no-invite-msg').style.display = 'block';
+            document.getElementById('active-invite-box').style.display = 'none';
+        }
+    })
+    .catch(err => console.warn('Invite load failed:', err));
+}
+
+function showActiveInvite(inv) {
+    currentInviteId = inv.id;
+    document.getElementById('invite-link-input').value = inv.link;
+    document.getElementById('invite-expire').textContent = `Истекает: ${new Date(inv.expires_at).toLocaleDateString('ru-RU')}`;
+    document.getElementById('no-invite-msg').style.display = 'none';
+    document.getElementById('active-invite-box').style.display = 'block';
+}
+
+async function generateInvite() {
+    showInviteMsg('Создание ссылки...', '');
+    try {
+        const res = await fetch('/api/partner-invites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+            body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (res.ok) showActiveInvite(data);
+        else showInviteMsg(data.detail || 'Ошибка', 'error');
+    } catch(e) { showInviteMsg('Ошибка соединения', 'error'); }
+}
+
+async function regenerateInvite() {
+    if (currentInviteId) await revokeInvite(currentInviteId, true);
+    generateInvite();
+}
+
+async function revokeInvite(id, silent = false) {
+    if (!silent && !confirm('Отозвать приглашение? Ссылка перестанет работать.')) return;
+    try {
+        const res = await fetch(`/api/partner-invites/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+            if (!silent) {
+                document.getElementById('active-invite-box').style.display = 'none';
+                document.getElementById('no-invite-msg').style.display = 'block';
+                showInviteMsg('Приглашение удалено', 'success');
+            }
+        } else showInviteMsg(data.detail || 'Ошибка', 'error');
+    } catch(e) { showInviteMsg('Ошибка соединения', 'error'); }
+}
+
+function copyInviteLink() {
+    const input = document.getElementById('invite-link-input');
+    input.select();
+    navigator.clipboard.writeText(input.value)
+        .then(() => showInviteMsg('✅ Ссылка скопирована!', 'success'))
+        .catch(() => { document.execCommand('copy'); showInviteMsg('Скопировано', 'success'); });
+}
+
+function showInviteMsg(text, type) {
+    const el = document.getElementById('invite-msg');
+    el.textContent = text;
+    el.className = `invite-msg ${type}`;
+    if (type) setTimeout(() => { el.textContent = ''; el.className = 'invite-msg'; }, 3000);
+}
+
+// ===========================
+// ВЫХОД ИЗ АККАУНТА
+// ===========================
+function logout() {
+    if (confirm('Вы действительно хотите выйти из аккаунта?')) {
+        // 1. Удаляем кэш авторизации
+        localStorage.removeItem('token');
+        sessionStorage.clear();
+        // 2. Перенаправляем на страницу входа
+        window.location.href = '/auth/login';
+    }
+}
+
+// Делаем функцию доступной для onclick в HTML
+window.logout = logout;

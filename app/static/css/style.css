@@ -338,16 +338,17 @@ body {
 
 /* ===== СТРАНИЦА ПРОФИЛЯ ===== */
 .profile-card {
-  background: var(--glass-bg);
-  border: var(--glass-border);
-  border-radius: 16px;
-  padding: 40px;
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--shadow);
+    position: relative;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
 }
 
 .avatar {
@@ -401,6 +402,101 @@ body {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+/* ===== РЕЖИМ ПАРТНЁРА (ТОЛЬКО ПРОСМОТР) ===== */
+.is-partner #btn-set-pregnancy,
+.is-partner .btn-add-test,
+.is-partner .edit-btn,
+.is-partner [data-action="add"],
+.is-partner .floating-menu button[data-page="settings"] {
+    display: none !important;
+}
+
+.is-partner .calendar-days span {
+    cursor: default;
+}
+
+.partner-profile {
+    text-align: center;
+    padding: 30px 20px;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+}
+
+.partner-avatar {
+    background: linear-gradient(135deg, var(--secondary), #C8B898);
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    border-radius: 50%;
+    width: 90px;
+    height: 90px;
+}
+
+.role-badge {
+    display: inline-block;
+    background: rgba(var(--secondary-rgb), 0.2);
+    color: var(--text-muted);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+}
+
+.partner-info {
+    background: rgba(255, 255, 255, 0.5);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(var(--secondary-rgb), 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.hidden { display: none !important; }
+
+/* ===== КНОПКА ВЫХОДА В ПРОФИЛЕ ===== */
+.logout-btn {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.35);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logout-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 18px rgba(231, 76, 60, 0.5);
+    background: linear-gradient(135deg, #c0392b, #a93226);
+}
+
+.logout-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+.logout-btn:active {
+    transform: scale(0.95);
 }
 
 /* ===== ПОДВАЛ ===== */
@@ -1019,3 +1115,80 @@ hr {
     border: none;
     border-top: 1px solid #E8DCC8;
 }
+
+/* ===== БЛОК ПРИГЛАШЕНИЯ ПАРТНЁРА ===== */
+.invite-section {
+    margin-top: 32px;
+    padding: 24px;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: 16px;
+    text-align: left;
+}
+.invite-section h3 {
+    margin: 0 0 8px;
+    font-size: 1.2rem;
+    color: var(--text-main);
+}
+.invite-desc {
+    margin: 0 0 16px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+#invite-link-input {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(var(--secondary-rgb), 0.4);
+    border-radius: 10px;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+.invite-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.btn-invite-generate, .btn-invite-action {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-invite-generate {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #3e3c38;
+    width: 100%;
+}
+.btn-invite-action {
+    background: rgba(var(--secondary-rgb), 0.2);
+    color: var(--text-main);
+    border: 1px solid rgba(var(--secondary-rgb), 0.3);
+}
+.btn-invite-action.btn-danger {
+    background: rgba(231, 76, 60, 0.1);
+    color: #c0392b;
+    border-color: rgba(231, 76, 60, 0.3);
+}
+.btn-invite-generate:hover, .btn-invite-action:hover { transform: translateY(-2px); }
+.expire-text {
+    margin: 12px 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: right;
+}
+.invite-msg {
+    margin-top: 12px;
+    padding: 8px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.85rem;
+    min-height: 20px;
+}
+.invite-msg.success { background: rgba(39, 174, 96, 0.1); color: #27ae60; }
+.invite-msg.error { background: rgba(231, 76, 60, 0.1); color: #c0392b; }
