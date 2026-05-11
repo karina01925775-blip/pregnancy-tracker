@@ -336,6 +336,184 @@ body {
     border-radius: 10px;
 }
 
+/* ===== ИИ-ВИДЖЕТ ===== */
+.ai-widget {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 2000;
+}
+
+/* Кнопка открытия */
+.ai-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4ECDC4, #45B7D1); /* Бирюзовый градиент */
+    border: none;
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(78, 205, 196, 0.4);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-btn:hover {
+    transform: scale(1.1) rotate(-5deg);
+    box-shadow: 0 12px 25px rgba(78, 205, 196, 0.5);
+}
+
+/* Окно чата */
+.ai-window {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 350px;
+    height: 500px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border-radius: 20px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    transform-origin: bottom right;
+}
+
+.ai-window.hidden {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+    pointer-events: none;
+    visibility: hidden;
+}
+
+/* Шапка чата */
+.ai-header {
+    background: linear-gradient(135deg, #4ECDC4, #45B7D1);
+    padding: 16px 20px;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+}
+
+.ai-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ai-close {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+.ai-close:hover { opacity: 1; }
+
+/* Сообщения */
+.ai-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #FDF8F8;
+}
+
+.message {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    animation: messageSlide 0.3s ease;
+}
+
+@keyframes messageSlide {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.message.bot {
+    background: white;
+    color: var(--text-main);
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    align-self: flex-start;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.message.user {
+    background: linear-gradient(135deg, #4ECDC4, #45B7D1);
+    color: white;
+    border-bottom-right-radius: 4px;
+    align-self: flex-end;
+    box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);
+}
+
+/* Поле ввода */
+.ai-input-area {
+    padding: 15px;
+    background: white;
+    border-top: 1px solid rgba(0,0,0,0.05);
+    display: flex;
+    gap: 10px;
+}
+
+#ai-input {
+    flex: 1;
+    padding: 10px 15px;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 25px;
+    outline: none;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+#ai-input:focus {
+    border-color: #4ECDC4;
+}
+
+.ai-send {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #4ECDC4;
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.ai-send:hover {
+    background: #3dbdb4;
+    transform: scale(1.05);
+}
+
+/* Адаптив для мобильных */
+@media (max-width: 480px) {
+    .ai-window {
+        width: calc(100vw - 40px);
+        height: 60vh;
+        right: -10px;
+    }
+}
+
 /* ===== СТРАНИЦА ПРОФИЛЯ ===== */
 .profile-card {
     position: relative;
@@ -1137,15 +1315,17 @@ hr {
     line-height: 1.4;
 }
 #invite-link-input {
-    width: 100%;
-    padding: 12px;
-    background: rgba(255,255,255,0.7);
+    flex: 1;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(var(--secondary-rgb), 0.4);
     border-radius: 10px;
     color: var(--text-main);
     font-size: 0.85rem;
-    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
 }
+
 .invite-actions {
     display: flex;
     gap: 8px;
@@ -1192,3 +1372,156 @@ hr {
 }
 .invite-msg.success { background: rgba(39, 174, 96, 0.1); color: #27ae60; }
 .invite-msg.error { background: rgba(231, 76, 60, 0.1); color: #c0392b; }
+
+/* ===== КОНТЕЙНЕР ССЫЛКИ И КНОПОК ===== */
+.invite-link-container {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 12px;
+}
+
+#invite-link-input {
+    flex: 1;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(var(--secondary-rgb), 0.4);
+    border-radius: 10px;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#invite-link-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+.invite-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* ===== КРУГЛЫЕ КНОПКИ ===== */
+.btn-round {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(var(--secondary-rgb), 0.3);
+    color: var(--text-main);
+    position: relative;
+}
+
+.btn-round svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s;
+}
+
+/* Копировать - в тонах primary (розовый) */
+.btn-copy {
+    background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.4), rgba(var(--primary-rgb), 0.2));
+    color: var(--text-main);
+    border: 1px solid rgba(var(--primary-rgb), 0.3);
+}
+.btn-copy:hover {
+    background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.6), rgba(var(--primary-rgb), 0.4));
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.25);
+}
+.btn-copy:hover svg {
+    transform: scale(1.1);
+}
+
+/* Обновить - в тонах secondary (бежевый с акцентом) */
+.btn-regenerate {
+    background: linear-gradient(135deg, rgba(var(--secondary-rgb), 0.5), rgba(var(--secondary-rgb), 0.3));
+    color: var(--text-main);
+    border: 1px solid rgba(var(--secondary-rgb), 0.4);
+}
+.btn-regenerate:hover {
+    background: linear-gradient(135deg, rgba(var(--secondary-rgb), 0.7), rgba(var(--secondary-rgb), 0.5));
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 12px rgba(var(--secondary-rgb), 0.3);
+}
+.btn-regenerate:hover svg {
+    transform: rotate(180deg);
+}
+
+/* Удалить - приглушённый красный в тёплой палитре */
+.btn-delete {
+    background: linear-gradient(135deg, rgba(231, 150, 150, 0.3), rgba(231, 150, 150, 0.15));
+    color: #8b5a5a;
+    border: 1px solid rgba(231, 150, 150, 0.4);
+}
+.btn-delete:hover {
+    background: linear-gradient(135deg, rgba(231, 150, 150, 0.5), rgba(231, 150, 150, 0.3));
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 12px rgba(231, 150, 150, 0.25);
+}
+.btn-delete:hover svg {
+    transform: scale(1.1);
+}
+
+.btn-round:active {
+    transform: translateY(0) scale(0.95);
+}
+
+/* ===== ПОДСКАЗКИ (TOOLTIPS) ===== */
+.btn-round::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: rgba(62, 60, 56, 0.95);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-round::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    border: 6px solid transparent;
+    border-top-color: rgba(62, 60, 56, 0.95);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s;
+}
+
+.btn-round:hover::after,
+.btn-round:hover::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-4px);
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 600px) {
+    .invite-link-container {
+        flex-direction: column;
+    }
+    .invite-buttons {
+        justify-content: flex-end;
+    }
+}

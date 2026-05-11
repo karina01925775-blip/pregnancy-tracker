@@ -1,11 +1,13 @@
 import sys
 from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent))
 
 import re
+import ollama  # <-- Добавляем импорт для работы с LLM
 from sqlalchemy.orm import Session
 from datetime import date
-from backend.services.pregnancy_utils import calculate_week_and_due_date
+# from backend.services.pregnancy_utils import calculate_week_and_due_date
 from backend.models import Pregnancy, KnowledgeBase
 
 CRITICAL_KEYWORDS = [
@@ -20,9 +22,9 @@ CONCERNING_KEYWORDS = [
     "тошнота сильная", "рвота", "головокружение", "давление скачет"
 ]
 
-def classify_user_message(message:str):
-    message_lower = message.lower()
 
+def classify_user_message(message: str):
+    message_lower = message.lower()
     for keyword in CRITICAL_KEYWORDS:
         if keyword in message_lower:
             return ("critical",
@@ -33,13 +35,17 @@ def classify_user_message(message:str):
                     "Это настораживающий симптом. Рекомендуем связаться с вашим лечащим врачом в ближайшее время.")
     return ("normal", None)
 
-def search_knowledge_base(db: Session, query:str, pregnancy_id: int = None) -> str:
-    query_lower = query.lower()
 
+def search_knowledge_base(db: Session, query: str, pregnancy_id: int = None) -> str:
+    """
+    Ищет ответ в БД. Если не находит, спрашивает у Llama 3 с предупреждением.
+    """
+    query_lower = query.lower()
     articles = db.query(KnowledgeBase).all()
     best_match = None
     best_score = 0
 
+    # 1. Поиск по базе знаний
     for article in articles:
         score = 0
         if article.title and query_lower in article.title.lower():
@@ -55,17 +61,54 @@ def search_knowledge_base(db: Session, query:str, pregnancy_id: int = None) -> s
             best_score = score
             best_match = article
 
-    context = ""
-
+    # Получаем контекст беременности
+    context_info = ""
     if pregnancy_id:
         pregnancy = db.query(Pregnancy).filter(Pregnancy.id == pregnancy_id).first()
         if pregnancy and pregnancy.last_menstruation_date:
-            current_week, _ = calculate_week_and_due_date(pregnancy.last_menstruation_date)
-            context = f"\n\n[Контекст: Ваш срок беременности - {current_week} неделя.]"
+            days = (date.today() - pregnancy.last_menstruation_date).days
+            week = days // 7
+            context_info = f"\n[Информация о пациенте: Срок беременности {week} недель.]"
 
+    # 2. Если статья найдена — используем её + ИИ для формулировки
     if best_match and best_score > 0:
-        return best_match.content + context
-    return f"Спасибо за ваш вопрос. Для точного ответа рекомендую проконсультироваться с вашим лечащим врачом.{context}"
+        system_prompt = f"""
+        Ты — медицинский ассистент 'МамаРядом'. Ответь на вопрос, используя ТОЛЬКО этот текст из базы знаний.
+
+        КОНТЕКСТ:
+        {best_match.content}
+        {context_info}
+        """
+        try:
+            response = ollama.chat(model='llama3', messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': query},
+            ])
+            return response['message']['content']
+        except Exception as e:
+            print(f"Ошибка Ollama: {e}")
+            return best_match.content + context_info  # Фоллбэк на сырой текст
+
+    # 3. Если ничего не найдено — спрашиваем ИИ "от себя" с предупреждением
+    else:
+        system_prompt = f"""
+        Ты — добрый медицинский ассистент для беременных.
+        Отвечай кратко, профессионально и доброжелательно.
+
+        ВАЖНО: В начале ответа обязательно добавь фразу: 
+        "⚠️ *Этой информации нет в моей официальной базе, ответ основан на общих медицинских знаниях и может быть неточным.*"
+
+        {context_info}
+        """
+        try:
+            response = ollama.chat(model='llama3', messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': query},
+            ])
+            return response['message']['content']
+        except Exception as e:
+            return f"К сожалению, я не нашел информации по этому вопросу ни в базе, ни в своих знаниях. Пожалуйста, обратитесь к врачу.{context_info}"
+
 
 def get_emergency_actions() -> str:
     return "\n".join([

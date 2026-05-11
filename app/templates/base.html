@@ -86,13 +86,29 @@
                 </div>
 
                 <div id="active-invite-box" style="display:none;">
-                    <div class="input-group">
+                    <div class="invite-link-container">
                         <input type="text" id="invite-link-input" readonly onclick="this.select()">
-                    </div>
-                    <div class="invite-actions">
-                        <button onclick="copyInviteLink()" class="btn-invite-action">📋 Копировать</button>
-                        <button onclick="regenerateInvite()" class="btn-invite-action">🔄 Обновить</button>
-                        <button onclick="revokeInvite(currentInviteId)" class="btn-invite-action btn-danger">🗑 Удалить</button>
+                        <div class="invite-buttons">
+                            <button onclick="copyInviteLink()" class="btn-round btn-copy" title="Копировать ссылку">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                            <button onclick="regenerateInvite()" class="btn-round btn-regenerate" title="Обновить ссылку">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                            </button>
+                            <button onclick="revokeInvite(currentInviteId)" class="btn-round btn-delete" title="Удалить ссылку">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <p class="expire-text" id="invite-expire"></p>
                 </div>
@@ -130,6 +146,42 @@
         <button class="active" data-page="page-home">🏠 Главная</button>
         <button data-page="page-profile">👤 Профиль</button>
     </nav>
+
+    <!-- 👇 ПЛАВАЮЩАЯ КНОПКА ИИ-АССИСТЕНТА -->
+    <div class="ai-widget">
+        <button id="ai-toggle-btn" class="ai-btn" onclick="toggleAIChat()" title="Спросить ИИ-помощника">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+        </button>
+
+        <div id="ai-chat-window" class="ai-window hidden">
+            <div class="ai-header">
+                <div class="ai-title">
+                    <span class="ai-icon">🤖</span>
+                    <span>МамаРядом AI</span>
+                </div>
+                <button onclick="toggleAIChat()" class="ai-close">×</button>
+            </div>
+
+            <div id="ai-messages" class="ai-messages">
+                <div class="message bot">
+                    <p>Привет! Я ваш виртуальный помощник. Спросите меня о питании, симптомах или развитии малыша. 👶</p>
+                </div>
+            </div>
+
+            <div class="ai-input-area">
+                <input type="text" id="ai-input" placeholder="Напишите вопрос..." onkeypress="handleAIEnter(event)">
+                <button onclick="sendAIMessage()" class="ai-send">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="app/static/js/ai_chat.js"></script>
     <!-- ===== СКРИПТЫ ===== -->
     <script src="app/static/js/home.js" defer></script>
 </body>

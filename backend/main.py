@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -549,7 +549,6 @@ def ask_ai(
         models.ChatRoom.id == room_id,
         models.ChatRoom.user_id == current_user.id
     ).first()
-
     if not room:
         raise HTTPException(status_code=404, detail="ИИ-чат не найден")
 
@@ -595,6 +594,16 @@ def ask_ai(
 
     return {"reply": answer, "triggered_critical": triggered_critical}
 
+# Вспомогательная функция для сохранения (чтобы не дублировать код)
+def save_ai_message(db, room_id, user_id, message_text, is_critical):
+    ai_msg = models.ChatMessage(
+        room_id=room_id,
+        sender_id=user_id, # Или ID бота, если есть
+        message=message_text,
+        triggered_critical=is_critical
+    )
+    db.add(ai_msg)
+    db.commit()
 
 # ---------- Дашборд ----------
 @app.get("/api/dashboard")
