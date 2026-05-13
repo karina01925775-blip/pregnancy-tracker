@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, inspect
 from dotenv import load_dotenv
 
 # Загружаем .env
-env_path = Path(__file__).parent / ".env"
+env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -43,3 +43,4 @@ try:
 
 except Exception as e:
     print(f"\n❌ Ошибка при подключении к БД: {e}")
+

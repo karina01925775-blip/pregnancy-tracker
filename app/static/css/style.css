@@ -336,6 +336,80 @@ body {
     border-radius: 10px;
 }
 
+/* ===== МОДАЛЬНОЕ ОКНО ТЕСТА ===== */
+.modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+}
+.modal.hidden { display: none; }
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+.test-question {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+.test-question label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+.test-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.test-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    cursor: pointer;
+}
+.test-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+.btn-test-start {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #3e3c38;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    margin: 10px 0;
+}
+
 /* ===== ИИ-ВИДЖЕТ ===== */
 .ai-widget {
     position: fixed;

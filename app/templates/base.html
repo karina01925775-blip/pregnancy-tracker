@@ -55,12 +55,32 @@
             <!-- Заглушка, если нет данных -->
             <div id="results-empty" class="results-empty">
                 <p>📭 Нет результатов тестов за этот день</p>
-                <button class="btn-add-test" onclick="openTestModal()">+ Добавить результат</button>
             </div>
 
             <!-- Контейнер для динамических результатов -->
             <div id="results-content" class="results-content" style="display: none;">
                 <!-- Сюда JS будет вставлять карточки тестов -->
+            </div>
+        </div>
+
+        <!-- Кнопка "Пройти тест" -->
+        <button onclick="openTestModal()" class="btn-test-start">
+            📋 Пройти ежедневный тест
+        </button>
+        <!-- Модальное окно теста -->
+        <div id="test-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📋 Ежедневный тест самочувствия</h3>
+                    <button onclick="closeTestModal()" class="modal-close">×</button>
+                </div>
+                <form id="test-form">
+                    <div id="test-questions-container"></div>
+                    <div class="test-actions">
+                        <button type="button" onclick="closeTestModal()">Отмена</button>
+                        <button type="submit" class="btn-primary">Отправить ответы</button>
+                    </div>
+                </form>
             </div>
         </div>
     </main>

@@ -16,6 +16,7 @@ import hashlib
 # Импорты из бэкенда
 from backend.database import get_db, engine
 import backend.models as models
+from backend.models import TestQuestion, TestAnswer
 from backend.auth import router as auth_router
 from backend.auth import get_current_active_user, get_password_hash
 from backend.auth import create_access_token
@@ -674,6 +675,78 @@ def get_my_patients(
         } for p in patients
     ]
 
+
+# ===== ПОЛУЧИТЬ СПИСОК ВОПРОСОВ =====
+@app.get("/api/test/questions")
+def get_test_questions(
+        current_user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    questions = db.query(models.TestQuestion).order_by(models.TestQuestion.order_index).all()
+    return [{
+        "id": q.id,
+        "text": q.question_text,
+        "type": q.question_type,
+        "options": q.options.split("|") if q.options else None,
+        "required": q.is_required
+    } for q in questions]
+
+
+# ===== СОХРАНИТЬ ОТВЕТЫ ПОЛЬЗОВАТЕЛЯ =====
+@app.post("/api/test/submit")
+def submit_test_answers(
+        data: dict,
+        current_user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    pregnancy_id = data.get("pregnancy_id")
+    answers = data.get("answers", [])  # [{"question_id": 1, "answer": "..."}, ...]
+
+    for ans in answers:
+        question = db.query(models.TestQuestion).filter(
+            models.TestQuestion.id == ans["question_id"]
+        ).first()
+        if not question:
+            continue
+
+        # Определяем тип ответа
+        answer_text = None
+        selected_option = None
+        if question.question_type == "text":
+            answer_text = ans.get("answer", "")
+        else:
+            selected_option = ans.get("answer", "")
+
+        # Сохраняем
+        test_answer = models.TestAnswer(
+            user_id=current_user.id,
+            question_id=question.id,
+            pregnancy_id=pregnancy_id,
+            answer_text=answer_text,
+            selected_option=selected_option
+        )
+        db.add(test_answer)
+
+    db.commit()
+    return {"message": "Ответы успешно сохранены"}
+
+
+# ===== ПОЛУЧИТЬ ИСТОРИЮ ТЕСТОВ ПОЛЬЗОВАТЕЛЯ =====
+@app.get("/api/test/history")
+def get_test_history(
+        current_user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    answers = db.query(models.TestAnswer).filter(
+        models.TestAnswer.user_id == current_user.id
+    ).order_by(models.TestAnswer.created_at.desc()).limit(50).all()
+
+    return [{
+        "question": ans.question.question_text,
+        "answer": ans.answer_text or ans.selected_option,
+        "date": ans.created_at.isoformat(),
+        "category": ans.question.category
+    } for ans in answers]
 
 # ---------- Health check ----------
 @app.get("/health")

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from datetime import date
 # from backend.services.pregnancy_utils import calculate_week_and_due_date
 from backend.models import Pregnancy, KnowledgeBase
+from backend.database import Base
 
 CRITICAL_KEYWORDS = [
     "кровотечение", "кровь", "сильная боль", "невыносимая боль",
@@ -35,23 +36,31 @@ def classify_user_message(message: str):
                     "Это настораживающий симптом. Рекомендуем связаться с вашим лечащим врачом в ближайшее время.")
     return ("normal", None)
 
-
 def search_knowledge_base(db: Session, query: str, pregnancy_id: int = None) -> str:
     """
     Ищет ответ в БД. Если не находит, спрашивает у Llama 3 с предупреждением.
     """
+    # 🔹 Отладка: покажем, что видит SQLAlchemy
+    print(f"🔍 Запрос к таблице: {KnowledgeBase.__tablename__}")
+    print(f"🔍 Метаданные таблиц: {list(Base.metadata.tables.keys())}")
+
+    query_lower = query.lower()
+    articles = db.query(KnowledgeBase).all()
+
+    print(f"🔍 Найдено статей: {len(articles)}")  # <-- Должно быть > 0
     query_lower = query.lower()
     articles = db.query(KnowledgeBase).all()
     best_match = None
     best_score = 0
-
+    print("======== Получили сообщение ==========", len(articles))
     # 1. Поиск по базе знаний
     for article in articles:
         score = 0
+        print(f"============= {article} ===========")
         if article.title and query_lower in article.title.lower():
             score += 5
         if article.keywords:
-            keywords = [kw.strip().lower() for kw in article.keywords.split(',')]
+            keywords = [kw.strip().lower() for kw in article.keywords.split(', ')]
             for kw in keywords:
                 if kw in query_lower:
                     score += 2

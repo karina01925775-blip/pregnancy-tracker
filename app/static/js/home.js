@@ -50,6 +50,12 @@ function checkAuthState() {
         if (banner) banner.classList.add('visible');
         document.body.classList.add('banner-visible');
 
+        // Скрыть кнопку теста для гостей
+        const testWidget = document.getElementById('test-widget');
+        if (testWidget) {
+            testWidget.style.display = 'none';
+        }
+
         if (profileContent) profileContent.style.display = 'none';
         if (profilePrompt) {
             profilePrompt.style.display = 'block';
@@ -68,6 +74,11 @@ function checkAuthState() {
         if (profileContent) profileContent.style.display = 'block';
 
         loadPartnerInvites();
+
+        const testWidget = document.getElementById('test-widget');
+        if (testWidget) {
+            testWidget.style.display = 'block';
+        }
 
         // Опционально: здесь можно сделать fetch('/auth/me') и подставить реальное имя
         // Загружаем данные дашборда, чтобы узнать, есть ли беременность
@@ -267,10 +278,6 @@ function getStatusText(status) {
     return map[status] || '';
 }
 
-// Делаем функции доступными для onclick в HTML
-window.closeResultsPanel = closeResultsPanel;
-window.openTestModal = () => alert('Функция добавления теста будет доступна в следующей версии 👶');
-
 // ===========================
 // ПРИВЕТСТВИЕ ПО ВРЕМЕНИ СУТОК
 // ===========================
@@ -412,6 +419,94 @@ document.getElementById('next-month').addEventListener('click', () => {
     displayMonth++;
     if (displayMonth > 11) { displayMonth = 0; displayYear++; }
     renderCalendar(rStart, rEnd);
+});
+
+// ===== МОДАЛЬНОЕ ОКНО ТЕСТА =====
+function openTestModal() {
+    const modal = document.getElementById('test-modal');
+    modal.classList.remove('hidden');
+    loadTestQuestions();
+}
+
+function closeTestModal() {
+    document.getElementById('test-modal').classList.add('hidden');
+    document.getElementById('test-form').reset();
+}
+
+async function loadTestQuestions() {
+    const container = document.getElementById('test-questions-container');
+    container.innerHTML = '<p>Загрузка вопросов...</p>';
+
+    const token = localStorage.getItem('token');
+    try {
+        const res = await fetch('/api/test/questions', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const questions = await res.json();
+
+        container.innerHTML = questions.map(q => {
+            if (q.type === 'text') {
+                return `
+                    <div class="test-question">
+                        <label>${q.text}${q.required ? ' *' : ''}</label>
+                        <textarea name="q_${q.id}" rows="3" placeholder="Ваш ответ..." ${q.required ? 'required' : ''}></textarea>
+                    </div>
+                `;
+            } else {
+                const options = q.options.map((opt, i) => `
+                    <label><input type="radio" name="q_${q.id}" value="${opt}" ${q.required ? 'required' : ''}> ${opt}</label>
+                `).join('');
+                return `
+                    <div class="test-question">
+                        <label>${q.text}${q.required ? ' *' : ''}</label>
+                        <div class="test-options">${options}</div>
+                    </div>
+                `;
+            }
+        }).join('');
+
+    } catch (e) {
+        container.innerHTML = '<p style="color: #e74c3c;">Ошибка загрузки вопросов</p>';
+    }
+}
+
+// Обработка отправки формы
+document.getElementById('test-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const token = localStorage.getItem('token');
+    const answers = [];
+
+    // Собираем ответы
+    document.querySelectorAll('#test-questions-container .test-question').forEach(div => {
+        const questionId = div.querySelector('[name]')?.name?.replace('q_', '');
+        const answer = div.querySelector('input:checked')?.value ||
+                      div.querySelector('textarea')?.value;
+
+        if (questionId && answer) {
+            answers.push({ question_id: parseInt(questionId), answer });
+        }
+    });
+
+    try {
+        const res = await fetch('/api/test/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ answers })
+        });
+
+        if (res.ok) {
+            alert('✅ Спасибо! Ваши ответы сохранены.');
+            closeTestModal();
+        } else {
+            alert('Ошибка сохранения');
+        }
+    } catch (e) {
+        alert('Ошибка соединения');
+    }
 });
 
 // ===========================

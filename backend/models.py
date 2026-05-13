@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, Bool
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
-import enum
+import enum, datetime
 
 class UserRole(str, enum.Enum):
     PATIENT = "patient"
@@ -175,3 +175,39 @@ class KnowledgeBase(Base):
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     keywords = Column(String, nullable=True)        # ключевые слова через запятую для поиска ИИ-ассистентом
+
+
+# ===== ТАБЛИЦА ВОПРОСОВ ДЛЯ ТЕСТА =====
+class TestQuestion(Base):
+    __tablename__ = "test_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question_text = Column(String, nullable=False)  # Текст вопроса
+    question_type = Column(String, default="multiple_choice")  # "multiple_choice" или "text"
+    options = Column(String)  # Варианты ответов через | для multiple_choice
+    order_index = Column(Integer, default=0)  # Порядок отображения
+    is_required = Column(Boolean, default=True)
+    category = Column(String, default="general")  # Категория: "mood", "symptoms", etc.
+
+    created_at = Column(DateTime, default=func.now())
+
+
+# ===== ТАБЛИЦА ОТВЕТОВ ПОЛЬЗОВАТЕЛЯ =====
+class TestAnswer(Base):
+    __tablename__ = "test_answers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    question_id = Column(Integer, ForeignKey("test_questions.id"), nullable=False)
+    pregnancy_id = Column(Integer, ForeignKey("pregnancies.id"), nullable=True)
+
+    answer_text = Column(Text)  # Для открытых вопросов
+    selected_option = Column(String)  # Для вопросов с выбором
+    score = Column(Integer, default=0)  # Балл за ответ (для аналитики)
+
+    created_at = Column(DateTime, default=func.now())
+
+    # Связи
+    # user = relationship("User", back_populates="test_answers")
+    question = relationship("TestQuestion")
+    pregnancy = relationship("Pregnancy")
