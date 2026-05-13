@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 4. Скрываем переключатель вкладок (чтобы не сбежали)
-        const tabsContainer = document.querySelector('.auth-tabs');
+        const tabsContainer = document.querySelector('.auth-tabs, .tabs');
         if (tabsContainer) tabsContainer.style.display = 'none';
     }
 });
@@ -76,6 +76,8 @@ async function doLogin() {
     const email = document.getElementById('login_email').value;
     const password = document.getElementById('login_password').value;
     const msg = document.getElementById('login_msg');
+
+    if (!msg) return;
 
     if (!email || !password) {
         msg.innerHTML = 'Заполните все поля'; msg.className = 'msg error'; return;
@@ -111,6 +113,8 @@ async function doLogin() {
 async function doRegister() {
     const msg = document.getElementById('register_msg');
     const nameInput = document.getElementById('reg_name');
+
+    if (!msg || !nameInput) return;
 
     // 🔹 РЕЖИМ ПАРТНЁРА (ИНВАЙТ)
     if (window.isPartnerInvite) {

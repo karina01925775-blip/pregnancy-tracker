@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,16 +5,15 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from dotenv import load_dotenv
-import hashlib
-import os
 
+from backend.config import get_secret_key, load_environment
 from backend.database import get_db
 from backend import models
 from backend.schemas import UserCreate, UserResponse, Token
-load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-this-in-production")
+load_environment()
+
+SECRET_KEY = get_secret_key("your-super-secret-key-change-this-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 дней
 
@@ -37,7 +35,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Хэширование пароля с поддержкой любой длины"""
-    print(f"Password length: {len(password.encode('utf-8'))} bytes")
     return pwd_context.hash(password)
 
 
@@ -72,10 +69,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
+        user_id = payload.get("sub")
         if user_id is None:
             raise credentials_exception
+        user_id = int(user_id)
     except JWTError:
+        raise credentials_exception
+    except (TypeError, ValueError):
         raise credentials_exception
 
     user = db.query(models.User).filter(models.User.id == user_id).first()

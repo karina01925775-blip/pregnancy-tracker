@@ -1,19 +1,16 @@
-# check_db.py
-import os
 from pathlib import Path
+import sys
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import os
 from sqlalchemy import create_engine, inspect
-from dotenv import load_dotenv
+from backend.config import load_environment, normalize_database_url
 
-# Загружаем .env
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
+load_environment()
 
-DATABASE_URL = os.getenv('DATABASE_URL')
-
-if not DATABASE_URL:
-    print("❌ DATABASE_URL не найден в .env")
-    print(f"Ищем файл: {env_path.absolute()}")
-    exit(1)
+DATABASE_URL = normalize_database_url(os.getenv('DATABASE_URL'))
 
 print(f"Подключение к БД: {DATABASE_URL}")
 

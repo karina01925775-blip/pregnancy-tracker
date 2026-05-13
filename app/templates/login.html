@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход и регистрация</title>
-    <link rel="stylesheet" href="/app/static/css/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
 </head>
 <body>
     <div class="card">
         <!-- Вкладки -->
-        <div class="tabs">
+        <div class="tabs auth-tabs">
             <button class="tab active" onclick="switchTab('login')">Вход</button>
             <button class="tab" onclick="switchTab('register')">Регистрация</button>
         </div>
@@ -57,6 +57,6 @@
     </div>
 
     <!-- 🔹 Скрипт с абсолютным путём -->
-    <script src="/app/static/js/login.js"></script>
+    <script src="{{ url_for('static', path='js/login.js') }}"></script>
 </body>
 </html>

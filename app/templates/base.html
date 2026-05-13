@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Мама рядом — {% block title %}{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
 </head>
 <body>
     <!-- 🔹 ВЕРХНИЙ БАННЕР (показывается, если нет токена) -->
@@ -64,7 +64,7 @@
         </div>
 
         <!-- Кнопка "Пройти тест" -->
-        <button onclick="openTestModal()" class="btn-test-start">
+        <button id="test-widget" onclick="openTestModal()" class="btn-test-start">
             📋 Пройти ежедневный тест
         </button>
         <!-- Модальное окно теста -->
@@ -201,8 +201,8 @@
             </div>
         </div>
     </div>
-    <script src="app/static/js/ai_chat.js"></script>
+    <script src="{{ url_for('static', path='js/ai_chat.js') }}" defer></script>
     <!-- ===== СКРИПТЫ ===== -->
-    <script src="app/static/js/home.js" defer></script>
+    <script src="{{ url_for('static', path='js/home.js') }}" defer></script>
 </body>
 </html>
