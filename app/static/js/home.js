@@ -372,7 +372,9 @@ function updateProfileSummary(data) {
 }
 
 async function checkAuthState() {
-    const token = getToken();
+    const rawToken = getToken();
+    const token = (rawToken && rawToken !== 'null' && rawToken !== 'undefined') ? rawToken : null;
+
     const banner = document.getElementById('auth-banner');
     const profileContent = document.getElementById('profile-content');
     const profilePrompt = document.getElementById('profile-auth-prompt');
@@ -381,21 +383,21 @@ async function checkAuthState() {
     const testButton = document.getElementById('test-widget');
     const partnerBlock = document.getElementById('partner-profile');
     const partnerInviteSection = document.getElementById('partner-invite-section');
+    const aiWidget = document.getElementById('ai-widget');
 
-    if (dateInput) {
-        dateInput.max = new Date().toISOString().split('T')[0];
-    }
+    if (dateInput) dateInput.max = new Date().toISOString().split('T')[0];
+
+    if (profileContent) profileContent.style.display = 'none';
+    if (profilePrompt) profilePrompt.style.display = 'none';
+    if (banner) banner.classList.remove('visible');
+    document.body.classList.remove('banner-visible');
+    if (testButton) testButton.style.display = 'none';
+    if (partnerBlock) partnerBlock.classList.add('hidden');
+    if (partnerInviteSection) partnerInviteSection.style.display = 'none';
+    if (aiWidget) aiWidget.classList.add('hidden');
 
     if (!token) {
-        banner?.classList.add('visible');
-        document.body.classList.add('banner-visible');
-
-        if (profileContent) {
-            profileContent.style.display = 'none';
-        }
-        if (partnerBlock) {
-            partnerBlock.classList.add('hidden');
-        }
+        if (banner) { banner.classList.add('visible'); document.body.classList.add('banner-visible'); }
         if (profilePrompt) {
             profilePrompt.style.display = 'block';
             profilePrompt.innerHTML = `
@@ -404,44 +406,25 @@ async function checkAuthState() {
                 <a href="/auth/login" class="btn-profile-login">Войти в систему</a>
             `;
         }
-        if (setupCard) {
-            setupCard.classList.remove('visible');
-            setupCard.classList.add('hidden');
-        }
-        if (testButton) {
-            testButton.style.display = 'none';
-        }
-        if (partnerInviteSection) {
-            partnerInviteSection.style.display = 'none';
-        }
+        if (setupCard) setupCard.classList.add('hidden');
         return;
     }
 
-    banner?.classList.remove('visible');
-    document.body.classList.remove('banner-visible');
-    if (profilePrompt) {
-        profilePrompt.style.display = 'none';
-    }
-    if (profileContent) {
-        profileContent.style.display = 'block';
-    }
-
     try {
-        const data = await fetchJson('/api/dashboard', {
-            headers: authHeaders()
-        });
+        const data = await fetchJson('/api/dashboard', { headers: authHeaders() });
+
+        if (aiWidget) aiWidget.classList.remove('hidden');
+
+        if (profilePrompt) profilePrompt.style.display = 'none';
+        if (profileContent) profileContent.style.display = 'block';
 
         document.body.classList.remove('is-patient', 'is-partner', 'is-doctor');
         document.body.classList.add(`is-${data.user.role}`);
-
         updateProfileSummary(data);
 
         const hasPregnancy = Boolean(data.active_pregnancy?.last_menstruation_date);
         if (hasPregnancy) {
-            updateCalendarFromDB(
-                data.active_pregnancy.last_menstruation_date,
-                data.active_pregnancy.due_date
-            );
+            updateCalendarFromDB(data.active_pregnancy.last_menstruation_date, data.active_pregnancy.due_date);
         } else {
             updateCalendarFromDB('', '');
         }
@@ -449,22 +432,11 @@ async function checkAuthState() {
         if (data.user.role === 'partner') {
             profileContent?.classList.add('hidden');
             partnerBlock?.classList.remove('hidden');
-            if (document.getElementById('partner-name')) {
-                document.getElementById('partner-name').textContent = data.user.full_name || 'Партнёр';
-            }
-            if (document.getElementById('following-name')) {
-                document.getElementById('following-name').textContent = data.followed_patient_name || 'Не назначен';
-            }
-            if (setupCard) {
-                setupCard.classList.remove('visible');
-                setupCard.classList.add('hidden');
-            }
-            if (testButton) {
-                testButton.style.display = 'none';
-            }
-            if (partnerInviteSection) {
-                partnerInviteSection.style.display = 'none';
-            }
+            if (document.getElementById('partner-name')) document.getElementById('partner-name').textContent = data.user.full_name || 'Партнёр';
+            if (document.getElementById('following-name')) document.getElementById('following-name').textContent = data.followed_patient_name || 'Не назначен';
+            if (setupCard) setupCard.classList.add('hidden');
+            if (testButton) testButton.style.display = 'none';
+            if (partnerInviteSection) partnerInviteSection.style.display = 'none';
             return;
         }
 
@@ -472,28 +444,18 @@ async function checkAuthState() {
         profileContent?.classList.remove('hidden');
 
         if (setupCard) {
-            if (hasPregnancy) {
-                setupCard.classList.remove('visible');
-                setupCard.classList.add('hidden');
-            } else {
-                setupCard.classList.remove('hidden');
-                setupCard.classList.add('visible');
-            }
+            setupCard.classList.toggle('visible', !hasPregnancy);
+            setupCard.classList.toggle('hidden', hasPregnancy);
         }
+        if (testButton) testButton.style.display = hasPregnancy ? 'inline-flex' : 'none';
+        if (partnerInviteSection) partnerInviteSection.style.display = hasPregnancy ? 'block' : 'none';
+        if (data.user.role === 'patient' && hasPregnancy) await loadPartnerInvites();
 
-        if (testButton) {
-            testButton.style.display = hasPregnancy ? 'inline-flex' : 'none';
-        }
-
-        if (partnerInviteSection) {
-            partnerInviteSection.style.display = hasPregnancy ? 'block' : 'none';
-        }
-
-        if (data.user.role === 'patient' && hasPregnancy) {
-            await loadPartnerInvites();
-        }
     } catch (error) {
-        console.warn('Не удалось загрузить состояние пользователя:', error);
+        console.warn('Токен невалиден, очищаем localStorage:', error.message);
+        localStorage.removeItem('token');
+        sessionStorage.clear();
+        checkAuthState();
     }
 }
 
@@ -557,6 +519,60 @@ async function loadTestQuestions() {
     } catch (error) {
         container.innerHTML = `<p style="color: #e74c3c;">${escapeHtml(error.message)}</p>`;
     }
+}
+
+function initSymptomChecker() {
+    const toggle = document.getElementById('symptom-toggle');
+    const panel = document.getElementById('symptom-panel');
+    const input = document.getElementById('symptom-input');
+    const btn = document.getElementById('symptom-btn');
+    const output = document.getElementById('symptom-output');
+
+    if (!toggle || !panel || !input || !btn || !output) return;
+
+    // Раскрытие/скрытие панели
+    toggle.addEventListener('click', () => {
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) input.focus();
+    });
+
+    // Отправка на анализ
+    btn.addEventListener('click', async () => {
+        const text = input.value.trim();
+        if (!text) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Анализ...';
+        output.className = 'symptom-output hidden';
+
+        try {
+            const res = await fetchJson('/api/symptom/analyze', {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify({ symptom_text: text })
+            });
+
+            output.className = `symptom-output ${res.classification}`;
+            let html = `<strong>${res.classification === 'critical' ? '🚨' : res.classification === 'concerning' ? '⚠️' : '✅'} Результат анализа:</strong>
+                        <p>${res.recommendation}</p>`;
+            if (res.actions) {
+                html += `<hr style="border:0; border-top:1px solid currentColor; margin:10px 0; opacity:0.3;"><pre>${res.actions}</pre>`;
+            }
+            output.innerHTML = html;
+            output.classList.remove('hidden');
+        } catch (error) {
+            output.className = 'symptom-output concerning';
+            output.innerHTML = `<p>⚠️ ${error.message}</p>`;
+            output.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Анализировать ИИ';
+        }
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') btn.click();
+    });
 }
 
 function initTestForm() {
@@ -784,49 +800,58 @@ function initFloatingMenu() {
 
 function initPregnancySetup() {
     const dateInput = document.getElementById('preg-start-date');
+    const weekInput = document.getElementById('preg-week');
     const setButton = document.getElementById('btn-set-pregnancy');
     const setupCard = document.getElementById('preg-setup-card');
-
-    if (!dateInput || !setButton || !setupCard) {
-        return;
-    }
+    if (!dateInput || !setButton || !setupCard) return;
 
     setButton.addEventListener('click', async () => {
-        if (!dateInput.value) {
-            alert('Пожалуйста, выберите дату.');
-            return;
-        }
+        const lmp = dateInput.value;
+        const week = weekInput?.value ? parseInt(weekInput.value) : null;
+        if (!lmp && !week) { alert('Выберите дату или укажите срок в неделях.'); return; }
 
         setButton.disabled = true;
         setButton.textContent = 'Сохранение...';
 
         try {
-            await fetchJson('/api/pregnancies', {
+            const payload = {};
+            if (lmp) payload.last_menstruation_date = lmp;
+            if (week) payload.gestational_week = week;
+
+            const res = await fetchJson('/api/pregnancies', {
                 method: 'POST',
                 headers: authHeaders(true),
-                body: JSON.stringify({ last_menstruation_date: dateInput.value })
+                body: JSON.stringify(payload)
             });
+
+            // Обновляем профиль новым периодом
+            const pregDays = document.getElementById('preg-days');
+            const pregLabel = document.querySelector('#preg-stat-container .label');
+            if (pregDays) pregDays.textContent = `${res.current_week} неделя`;
+            if (pregLabel) pregLabel.textContent = res.period;
 
             setupCard.classList.remove('visible');
             setupCard.classList.add('hidden');
             dateInput.value = '';
-            alert('Дата беременности сохранена.');
+            if (weekInput) weekInput.value = '';
+
+            alert(`✅ Данные сохранены!\n📅 Период: ${res.period}\n🍼 ПДР: ${new Date(res.due_date).toLocaleDateString('ru-RU')}`);
             await checkAuthState();
         } catch (error) {
             alert(error.message);
         } finally {
             setButton.disabled = false;
-            setButton.textContent = 'Установить дату беременности';
+            setButton.textContent = 'Установить';
         }
     });
 }
-
 function initApp() {
     initMenuNavigation();
     initCalendar();
     initTestForm();
     initFloatingMenu();
     initPregnancySetup();
+    initSymptomChecker();
     updateGreeting();
     checkAuthState();
 }

@@ -32,8 +32,10 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     phone = Column(String, nullable=False, default="")
+    age = Column(Integer, nullable=False)
     role = Column(Enum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
+    disclaimer_accepted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     pregnancies = relationship("Pregnancy", back_populates="patient")
 

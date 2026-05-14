@@ -114,7 +114,10 @@ async function doRegister() {
     const msg = document.getElementById('register_msg');
     const nameInput = document.getElementById('reg_name');
 
-    if (!msg || !nameInput) return;
+    if (!msg || !nameInput) {
+        console.error('❌ Не найдены элементы формы регистрации');
+        return;
+    }
 
     // 🔹 РЕЖИМ ПАРТНЁРА (ИНВАЙТ)
     if (window.isPartnerInvite) {
@@ -144,7 +147,7 @@ async function doRegister() {
         } catch (e) {
             msg.innerHTML = 'Ошибка соединения'; msg.className = 'msg error';
         }
-        return; // ❗ Прерываем выполнение, стандартная регистрация не сработает
+        return;
     }
 
     // 🔹 СТАНДАРТНАЯ РЕГИСТРАЦИЯ ПАЦИЕНТА
@@ -152,10 +155,23 @@ async function doRegister() {
     const name = nameInput.value;
     const phone = document.getElementById('reg_phone').value;
     const password = document.getElementById('reg_password').value;
+    const age = document.getElementById('reg_age').value;
+    const disclaimerChecked = document.getElementById('reg_disclaimer').checked ;
 
-    if (!email || !name || !password) {
+    if (!email || !name || !password || !age) {
         msg.innerHTML = 'Заполните обязательные поля'; msg.className = 'msg error'; return;
     }
+
+    if (!disclaimerChecked) {
+        msg.innerHTML = 'Необходимо принять медицинский дисклеймер'; msg.className = 'msg error'; return;
+    }
+
+    if (!age || age < 14 || age > 99) {
+        msg.innerHTML = 'Введите корректный возраст (14–99)';
+        msg.className = 'msg error';
+        return;
+    }
+
     if (password.length < 6) { msg.innerHTML = 'Пароль минимум 6 символов'; msg.className = 'msg error'; return; }
     if (password.length > 128) { msg.innerHTML = 'Пароль не более 128 символов'; msg.className = 'msg error'; return; }
 
@@ -164,7 +180,8 @@ async function doRegister() {
         const res = await fetch('/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, full_name: name, phone: phone || '', password, role: 'patient' })
+            body: JSON.stringify({ email, full_name: name, phone: phone || '',
+                password, role: 'patient', age, disclaimer_accepted: true })
         });
         const data = await res.json();
 

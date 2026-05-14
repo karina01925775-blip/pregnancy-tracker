@@ -21,6 +21,14 @@
             <h1 id="greeting-text"></h1>
             <p id="greeting-sub"></p>
         </section>
+        <div class="symptom-checker-wrapper">
+            <h3 class="symptom-toggle" id="symptom-toggle">Быстрая проверка симптома</h3>
+            <div class="symptom-panel hidden" id="symptom-panel">
+                <input type="text" id="symptom-input" placeholder="Например: тянет низ живота, появилась тошнота..." autocomplete="off">
+                <button id="symptom-btn" class="btn-primary">Анализировать ИИ</button>
+                <div id="symptom-output" class="symptom-output hidden"></div>
+            </div>
+        </div>
         <section class="calendar" id="calendar"
          data-range-start="{{ range_start | default('') }}"
          data-range-end="{{ range_end | default('') }}">
@@ -40,8 +48,10 @@
                     <p>Выберите первый день последней менструации для расчёта срока и ПДР</p>
                 </div>
                 <div class="setup-card-body">
-                    <input type="date" id="preg-start-date" required>
-                    <button id="btn-set-pregnancy" class="btn-primary">Установить дату беременности</button>
+                    <input type="date" id="preg-start-date" placeholder="Дата последней менструации">
+                    <div class="setup-hint">или укажите срок</div>
+                    <input type="number" id="preg-week" placeholder="Недели (1–42)" min="1" max="42">
+                    <button class="btn-primary" id="btn-set-pregnancy">Установить</button>
                 </div>
             </div>
         </section>
@@ -87,7 +97,7 @@
 
     <!-- ===== СТРАНИЦА ПРОФИЛЯ ===== -->
     <main class="page" id="page-profile">
-        <div class="profile-card" id="profile-content">
+        <div class="profile-card" id="profile-content" style="display: none;">
             <div class="avatar">👤</div>
             <h2>{{ name | default('Гость') }}</h2>
             <p class="email">{{ email | default('') }}</p>

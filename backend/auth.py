@@ -109,6 +109,9 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Пользователь с таким email уже существует"
         )
 
+    if not user_data.disclaimer_accepted:
+        raise HTTPException(status_code=400, detail="Необходимо принять медицинский дисклеймер")
+
     # Создание нового пользователя
     hashed_password = get_password_hash(user_data.password)
 
@@ -117,7 +120,9 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         hashed_password=hashed_password,
         full_name=user_data.full_name,
         phone=user_data.phone or "",
-        role=user_data.role
+        age=user_data.age,
+        role=user_data.role,
+        disclaimer_accepted = True
     )
 
     db.add(new_user)

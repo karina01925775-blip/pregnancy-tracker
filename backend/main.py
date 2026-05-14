@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from backend import models
+from backend.services.pregnancy_utils import calculate_trimester_dates, calculate_week_and_due_date, get_pregnancy_period
 from backend.auth import create_access_token, get_current_active_user, get_password_hash, router as auth_router
 from backend.config import STATIC_DIR, TEMPLATES_DIR
 from backend.database import SessionLocal, engine, get_db
@@ -210,6 +211,9 @@ async def register_page(request: Request):
 async def profile_redirect():
     return RedirectResponse(url="/", status_code=307)
 
+@app.get("/disclaimer")
+async def disclaimer_page():
+    return RedirectResponse(url="disclaimer.html", status_code=307)
 
 @app.post("/api/invite")
 def create_invite(
@@ -408,12 +412,18 @@ def create_pregnancy(
     if existing_active is not None:
         raise HTTPException(status_code=400, detail="У вас уже есть активная беременность")
 
-    _, due_date = calculate_week_and_due_date(data.last_menstruation_date)
-    second_trimester, third_trimester = calculate_trimester_dates(data.last_menstruation_date)
+    lmp = data.last_menstruation_date
+    if lmp is None and data.gestational_week:
+        lmp = date.today() - timedelta(days=data.gestational_week * 7)
+    if lmp is None:
+        raise HTTPException(status_code=400, detail="Укажите дату последней менструации или срок в неделях")
+
+    _, due_date = calculate_week_and_due_date(lmp)
+    second_trimester, third_trimester = calculate_trimester_dates(lmp)
 
     pregnancy = models.Pregnancy(
         patient_id=current_user.id,
-        last_menstruation_date=data.last_menstruation_date,
+        last_menstruation_date=lmp,
         second_trimester_date=second_trimester,
         third_trimester_date=third_trimester,
         due_date=due_date,
@@ -423,7 +433,17 @@ def create_pregnancy(
     db.commit()
     db.refresh(pregnancy)
 
-    return serialize_pregnancy(pregnancy)
+    current_week, _ = calculate_week_and_due_date(lmp)
+    period = get_pregnancy_period(current_week)
+
+    return {
+        "id": pregnancy.id,
+        "due_date": due_date.isoformat() if due_date else None,
+        "status": pregnancy.status.value,
+        "last_menstruation_date": lmp.isoformat(),
+        "current_week": current_week,
+        "period": period
+    }
 
 
 @app.get("/api/pregnancies")
@@ -845,6 +865,24 @@ def get_test_history(
 @app.get("/health")
 def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.post("/api/symptom/analyze")
+def analyze_symptom(
+        data: SymptomCreate,
+        current_user: models.User = Depends(get_current_active_user)
+):
+    classification, recommendation = classify_user_message(data.symptom_text)
+
+    result = {
+        "classification": classification,
+        "recommendation": recommendation or "Симптом не требует срочного вмешательства. При усилении обратитесь к врачу."
+    }
+
+    if classification == "critical":
+        result["actions"] = get_emergency_actions()
+
+    return result
 
 
 if __name__ == "__main__":

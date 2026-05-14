@@ -4,6 +4,7 @@ import re
 from datetime import date
 from typing import Optional
 
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
 from backend.models import KnowledgeBase, Pregnancy
@@ -164,11 +165,20 @@ def find_best_article(db: Session, query: str) -> Optional[KnowledgeBase]:
 
 def find_best_articles(db: Session, query: str, limit: int = 3) -> list[KnowledgeBase]:
     query_lower = normalize_text(query)
-    query_tokens = set(tokenize(query_lower))
-    ranked: list[tuple[int, KnowledgeBase]] = []
+    query_tokens = tokenize(query_lower)
+    if not query_tokens:
+        return []
 
-    for article in db.query(KnowledgeBase).all():
-        score = score_article(article, query_lower, query_tokens)
+    conditions = []
+    for token in query_tokens:
+        conditions.append(func.lower(KnowledgeBase.keywords).contains(token))
+        conditions.append(func.lower(KnowledgeBase.title).contains(token))
+
+    candidates = db.query(KnowledgeBase).filter(or_(*conditions)).limit(50).all()
+
+    ranked: list[tuple[int, KnowledgeBase]] = []
+    for article in candidates:
+        score = score_article(article, query_lower, set(query_tokens))
         if score > 0:
             ranked.append((score, article))
 
@@ -242,36 +252,43 @@ def search_knowledge_base(db: Session, query: str, pregnancy_id: int = None) -> 
     if matches:
         context_blocks = build_context_blocks(matches)
         system_prompt = (
-            "Ты медицинский ассистент проекта 'Мама Рядом'. "
-            "Отвечай кратко, спокойно и только на основе переданного контекста базы знаний. "
-            "Если в контексте нет точного ответа, честно скажи об этом.\n\n"
-            f"КОНТЕКСТ:\n{context_blocks}\n{context_info}"
+            "Ты — медицинский ассистент проекта «Мама Рядом». "
+            "Отвечай ТОЛЬКО на основе предоставленного КОНТЕКСТА. "
+            "🚫 ЗАПРЕЩЕНО: добавлять внешние факты, советы, дозировки или данные, которых нет в тексте. "
+            "✅ РАЗРЕШЕНО: улучшать читаемость, разбивать на абзацы/списки, добавлять умеренные эмодзи, "
+            "делать тон профессиональным, спокойным и поддерживающим. "
+            "Не меняй медицинские термины, цифры и формулировки. Сохраняй точность. "
+            "Если в контексте нет прямого ответа, напиши: «В моей базе знаний нет точной информации по этому вопросу. Пожалуйста, проконсультируйтесь с врачом.»\n\n"
+            f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ:\n{context_blocks}\n"
+            f"КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:{context_info}"
         )
         llm_answer = ask_ollama(system_prompt, query)
         if llm_answer:
-            return llm_answer
-        return f"{context_blocks}{context_info}"
+            return llm_answer.strip()
 
-    system_prompt = (
+        # Фоллбэк: если Ollama недоступен, возвращаем сырой текст из БД
+        return f"{context_blocks}\n{context_info}".strip()
+
+    # Если точных совпадений нет → обращаемся к общей базе знаний модели
+    system_prompt_fallback = (
         "Ты добрый медицинский ассистент для беременных. "
-        "Отвечай кратко, профессионально и доброжелательно. "
+        "Отвечай кратко, только на русском языке, профессионально и доброжелательно. "
         "Если точной информации нет, честно предупреди об этом.\n"
         f"{context_info}"
     )
-    llm_answer = ask_ollama(system_prompt, query)
+    llm_answer = ask_ollama(system_prompt_fallback, query)
     if llm_answer:
         return (
             "⚠️ Этой информации нет в моей официальной базе, "
             "ответ основан на общих медицинских знаниях.\n\n"
             f"{llm_answer}"
-        )
+        ).strip()
 
     return (
         "К сожалению, я не нашел информации по этому вопросу ни в базе, ни в локальной модели. "
         "Пожалуйста, обратитесь к врачу."
         f"{context_info}"
-    )
-
+    ).strip()
 
 def build_context_blocks(matches: list[KnowledgeBase], max_total_length: int = 7000) -> str:
     blocks: list[str] = []
