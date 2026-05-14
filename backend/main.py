@@ -521,16 +521,7 @@ def create_symptom(
 
     ensure_pregnancy_access(db, current_user, pregnancy_id, write_access=True)
 
-    text_lower = data.symptom_text.lower()
-    critical_keywords = ["кровотечение", "кровь", "сильная боль", "обморок", "температура 39"]
-    concerning_keywords = ["головная боль", "отеки", "выделения", "тошнота", "давление"]
-
-    if any(keyword in text_lower for keyword in critical_keywords):
-        classification = "critical"
-    elif any(keyword in text_lower for keyword in concerning_keywords):
-        classification = "concerning"
-    else:
-        classification = "informational"
+    classification, recommendation = classify_user_message(data.symptom_text)
 
     symptom = models.SymptomEntry(
         pregnancy_id=pregnancy_id,
@@ -541,7 +532,11 @@ def create_symptom(
     db.commit()
     db.refresh(symptom)
 
-    return {"id": symptom.id, "classification": classification}
+    return {
+        "id": symptom.id,
+        "classification": classification,
+        "recommendation": recommendation,
+    }
 
 
 @app.post("/api/chat/doctor/create/{pregnancy_id}")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Optional
 
@@ -13,51 +14,134 @@ except ImportError:  # pragma: no cover - зависит от локальной
     ollama = None
 
 
+STOP_WORDS = {
+    "и",
+    "в",
+    "во",
+    "на",
+    "с",
+    "со",
+    "по",
+    "о",
+    "об",
+    "а",
+    "но",
+    "ли",
+    "же",
+    "бы",
+    "что",
+    "как",
+    "для",
+    "при",
+    "это",
+    "так",
+    "из",
+    "к",
+    "у",
+    "от",
+    "до",
+    "без",
+    "через",
+    "или",
+    "не",
+    "ни",
+    "меня",
+    "мне",
+    "есть",
+    "очень",
+    "сейчас",
+    "сегодня",
+}
+
 CRITICAL_KEYWORDS = [
     "кровотечение",
     "кровь",
+    "алые выделения",
+    "обильные выделения",
     "сильная боль",
+    "резкая боль",
     "невыносимая боль",
     "обморок",
     "потеря сознания",
-    "температура 39",
-    "высокая температура",
+    "судороги",
     "отходят воды",
     "подтекание вод",
     "схватки",
-    "давление 140",
-    "не чувствую шевелений",
     "нет шевелений",
-    "преждевременные роды",
+    "не чувствую шевелений",
+    "боль в груди",
+    "не хватает воздуха",
+    "тяжело дышать",
 ]
 
 CONCERNING_KEYWORDS = [
     "головная боль",
     "отеки",
+    "отёки",
     "выделения",
     "тянет низ живота",
-    "тошнота сильная",
+    "тянущая боль",
+    "тошнота",
     "рвота",
     "головокружение",
-    "давление скачет",
+    "давление",
+    "жжение при мочеиспускании",
+    "частое мочеиспускание",
+    "температура",
+    "меньше шевелений",
+    "слабость",
 ]
 
 
-def classify_user_message(message: str):
-    message_lower = message.lower()
-    for keyword in CRITICAL_KEYWORDS:
-        if keyword in message_lower:
-            return (
-                "critical",
-                "КРИТИЧЕСКИЙ СИМПТОМ. Немедленно вызовите скорую помощь (103) или обратитесь в стационар.",
-            )
-    for keyword in CONCERNING_KEYWORDS:
-        if keyword in message_lower:
-            return (
-                "concerning",
-                "Это настораживающий симптом. Рекомендуем связаться с вашим лечащим врачом в ближайшее время.",
-            )
-    return "normal", None
+def classify_user_message(message: str) -> tuple[str, Optional[str]]:
+    normalized = normalize_text(message)
+
+    if is_critical_symptom(normalized):
+        return (
+            "critical",
+            "Критический симптом. Немедленно вызовите скорую помощь (103/112) или обратитесь в стационар.",
+        )
+
+    if is_concerning_symptom(normalized):
+        return (
+            "concerning",
+            "Это настораживающий симптом. Рекомендуем связаться с вашим лечащим врачом как можно скорее.",
+        )
+
+    return "informational", None
+
+
+def normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").lower()).strip()
+
+
+def is_critical_symptom(text: str) -> bool:
+    if any(keyword in text for keyword in CRITICAL_KEYWORDS):
+        return True
+
+    if "температур" in text and re.search(r"\b39([.,]\d+)?\b|\b40([.,]\d+)?\b", text):
+        return True
+
+    if re.search(r"\b(14\d|15\d|16\d|17\d)\s*/\s*(9\d|10\d|11\d)\b", text):
+        return True
+
+    if "давление" in text and any(value in text for value in ("140", "150", "160", "170")):
+        return True
+
+    return False
+
+
+def is_concerning_symptom(text: str) -> bool:
+    if any(keyword in text for keyword in CONCERNING_KEYWORDS):
+        return True
+
+    if "температур" in text and re.search(r"\b37[.,][89]\b|\b38([.,]\d+)?\b", text):
+        return True
+
+    if re.search(r"\b(13\d)\s*/\s*(8\d|9\d)\b", text):
+        return True
+
+    return False
 
 
 def build_pregnancy_context(db: Session, pregnancy_id: Optional[int]) -> str:
@@ -74,26 +158,63 @@ def build_pregnancy_context(db: Session, pregnancy_id: Optional[int]) -> str:
 
 
 def find_best_article(db: Session, query: str) -> Optional[KnowledgeBase]:
-    query_lower = query.lower()
-    best_match = None
-    best_score = 0
+    articles = find_best_articles(db, query, limit=1)
+    return articles[0] if articles else None
+
+
+def find_best_articles(db: Session, query: str, limit: int = 3) -> list[KnowledgeBase]:
+    query_lower = normalize_text(query)
+    query_tokens = set(tokenize(query_lower))
+    ranked: list[tuple[int, KnowledgeBase]] = []
 
     for article in db.query(KnowledgeBase).all():
-        score = 0
+        score = score_article(article, query_lower, query_tokens)
+        if score > 0:
+            ranked.append((score, article))
 
-        if article.title and query_lower in article.title.lower():
-            score += 5
-        if article.keywords:
-            keywords = [kw.strip().lower() for kw in article.keywords.split(",")]
-            score += sum(2 for keyword in keywords if keyword and keyword in query_lower)
-        if article.content and query_lower in article.content.lower():
-            score += 1
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [article for _, article in ranked[:limit]]
 
-        if score > best_score:
-            best_score = score
-            best_match = article
 
-    return best_match if best_score > 0 else None
+def tokenize(text: str) -> list[str]:
+    return [
+        token
+        for token in re.findall(r"\b[а-яёa-z0-9]{3,}\b", text.lower(), flags=re.IGNORECASE)
+        if token not in STOP_WORDS
+    ]
+
+
+def score_article(article: KnowledgeBase, query_lower: str, query_tokens: set[str]) -> int:
+    title = article.title or ""
+    keywords = article.keywords or ""
+    content = article.content or ""
+    category = article.category or ""
+
+    title_lower = title.lower()
+    keywords_lower = keywords.lower()
+    content_lower = content.lower()
+    category_lower = category.lower()
+
+    title_tokens = set(tokenize(title_lower))
+    keyword_tokens = set(tokenize(keywords_lower))
+    content_tokens = set(tokenize(content_lower[:12000]))
+    category_tokens = set(tokenize(category_lower))
+
+    score = 0
+
+    if query_lower and query_lower in title_lower:
+        score += 15
+    if query_lower and query_lower in keywords_lower:
+        score += 10
+    if query_lower and query_lower in content_lower:
+        score += 6
+
+    score += len(query_tokens & title_tokens) * 6
+    score += len(query_tokens & keyword_tokens) * 5
+    score += len(query_tokens & category_tokens) * 4
+    score += len(query_tokens & content_tokens) * 2
+
+    return score
 
 
 def ask_ollama(system_prompt: str, query: str) -> Optional[str]:
@@ -116,18 +237,20 @@ def ask_ollama(system_prompt: str, query: str) -> Optional[str]:
 
 def search_knowledge_base(db: Session, query: str, pregnancy_id: int = None) -> str:
     context_info = build_pregnancy_context(db, pregnancy_id)
-    best_match = find_best_article(db, query)
+    matches = find_best_articles(db, query, limit=3)
 
-    if best_match:
+    if matches:
+        context_blocks = build_context_blocks(matches)
         system_prompt = (
             "Ты медицинский ассистент проекта 'Мама Рядом'. "
-            "Ответь на вопрос кратко, спокойно и используя только переданный текст базы знаний.\n\n"
-            f"КОНТЕКСТ:\n{best_match.content}\n{context_info}"
+            "Отвечай кратко, спокойно и только на основе переданного контекста базы знаний. "
+            "Если в контексте нет точного ответа, честно скажи об этом.\n\n"
+            f"КОНТЕКСТ:\n{context_blocks}\n{context_info}"
         )
         llm_answer = ask_ollama(system_prompt, query)
         if llm_answer:
             return llm_answer
-        return f"{best_match.content}{context_info}"
+        return f"{context_blocks}{context_info}"
 
     system_prompt = (
         "Ты добрый медицинский ассистент для беременных. "
@@ -148,6 +271,20 @@ def search_knowledge_base(db: Session, query: str, pregnancy_id: int = None) -> 
         "Пожалуйста, обратитесь к врачу."
         f"{context_info}"
     )
+
+
+def build_context_blocks(matches: list[KnowledgeBase], max_total_length: int = 7000) -> str:
+    blocks: list[str] = []
+    total_length = 0
+
+    for article in matches:
+        block = f"[{article.title}]\n{article.content.strip()}"
+        if total_length + len(block) > max_total_length and blocks:
+            break
+        blocks.append(block)
+        total_length += len(block)
+
+    return "\n\n".join(blocks)
 
 
 def get_emergency_actions() -> str:
