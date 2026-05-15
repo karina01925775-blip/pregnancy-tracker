@@ -59,6 +59,9 @@ let currentDate = new Date();
 let displayYear = currentDate.getFullYear();
 let displayMonth = currentDate.getMonth();
 
+// Хранилище событий (в localStorage)
+let weekEvents = JSON.parse(localStorage.getItem('weekEvents')) || [];
+
 function renderCalendar() {
     const monthYearEl = document.getElementById('month-year');
     const daysContainer = document.getElementById('calendar-days');
@@ -88,6 +91,39 @@ function renderCalendar() {
     for (let d = 1; d <= lastDay.getDate(); d++) {
         const span = document.createElement('span');
         span.textContent = d;
+        
+        // Формируем дату в формате YYYY-MM-DD
+        const currentDayDate = new Date(displayYear, displayMonth, d);
+        const dateStr = currentDayDate.toISOString().split('T')[0];
+        
+        // Проверяем события на этот день
+        const dayEvents = weekEvents.filter(e => e.date === dateStr);
+        
+        if (dayEvents.length > 0) {
+            span.classList.add('has-events');
+            span.setAttribute('data-event-count', dayEvents.length);
+            
+            // Проверяем, есть ли просроченные события
+            const now = new Date();
+            const hasOverdue = dayEvents.some(e => {
+                const eventDateTime = new Date(`${e.date}T${e.time}`);
+                return eventDateTime < now;
+            });
+            
+            // Добавляем точку-индикатор
+            const dot = document.createElement('span');
+            dot.classList.add('event-dot');
+            if (hasOverdue) {
+                dot.classList.add('overdue');
+            }
+            span.appendChild(dot);
+        }
+        
+        // Обработчик клика на день
+        span.addEventListener('click', () => {
+            showDayEvents(dateStr);
+        });
+        
         if (
             d === today.getDate() &&
             displayMonth === today.getMonth() &&
@@ -109,6 +145,83 @@ function renderCalendar() {
     }
 }
 
+// Показ событий выбранного дня
+function showDayEvents(dateStr) {
+    const dayEventsModalOverlay = document.getElementById('day-events-modal-overlay');
+    const dayEventsList = document.getElementById('day-events-list');
+    const dayEventsTitle = document.getElementById('day-events-title');
+    
+    const selectedDate = new Date(dateStr);
+    const options = { day: 'numeric', month: 'long', year: 'numeric' };
+    dayEventsTitle.textContent = `События на ${selectedDate.toLocaleDateString('ru-RU', options)}`;
+    
+    dayEventsList.innerHTML = '';
+    
+    const dayEvents = weekEvents.filter(e => e.date === dateStr).sort((a, b) => {
+        const timeA = new Date(`${a.date}T${a.time}`);
+        const timeB = new Date(`${b.date}T${b.time}`);
+        return timeA - timeB;
+    });
+    
+    if (dayEvents.length === 0) {
+        dayEventsList.innerHTML = '<li class="no-events-message">Нет событий на этот день</li>';
+    } else {
+        dayEvents.forEach(event => {
+            const li = document.createElement('li');
+            
+            let typeIcon = '📝';
+            let typeName = event.title;
+            switch(event.type) {
+                case 'visit':
+                    typeIcon = '🩺';
+                    typeName = 'Визит к врачу';
+                    break;
+                case 'analysis':
+                    typeIcon = '🧪';
+                    typeName = 'Анализы';
+                    break;
+                case 'ultrasound':
+                    typeIcon = '📷';
+                    typeName = 'УЗИ';
+                    break;
+                case 'other':
+                    typeIcon = '📝';
+                    typeName = event.title || 'Другое';
+                    break;
+            }
+            
+            const eventDateTime = new Date(`${event.date}T${event.time}`);
+            const now = new Date();
+            const isOverdue = eventDateTime < now;
+            
+            li.innerHTML = `
+                <span class="event-type">${typeIcon} ${typeName}</span>
+                <span class="event-date">⏰ ${event.time}</span>
+                ${event.notes ? `<span class="event-notes">${event.notes}</span>` : ''}
+                ${isOverdue ? '<span style="color: #ffeb3b; font-size: 0.8rem;">⚠️ Просрочено</span>' : ''}
+                <button class="delete-event-btn" data-event-id="${event.id}">🗑️ Удалить</button>
+            `;
+            
+            dayEventsList.appendChild(li);
+        });
+        
+        // Добавляем обработчики удаления
+        dayEventsList.querySelectorAll('.delete-event-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const eventId = parseInt(e.target.getAttribute('data-event-id'));
+                if (confirm('Удалить это событие?')) {
+                    weekEvents = weekEvents.filter(e => e.id !== eventId);
+                    localStorage.setItem('weekEvents', JSON.stringify(weekEvents));
+                    showDayEvents(dateStr);
+                    renderCalendar();
+                }
+            });
+        });
+    }
+    
+    dayEventsModalOverlay.classList.add('active');
+}
+
 document.getElementById('prev-month').addEventListener('click', () => {
     displayMonth--;
     if (displayMonth < 0) { displayMonth = 11; displayYear--; }
@@ -119,6 +232,20 @@ document.getElementById('next-month').addEventListener('click', () => {
     displayMonth++;
     if (displayMonth > 11) { displayMonth = 0; displayYear++; }
     renderCalendar();
+});
+
+// Закрытие модального окна просмотра событий дня
+const closeDayEventsBtn = document.getElementById('close-day-events-btn');
+const dayEventsModalOverlay = document.getElementById('day-events-modal-overlay');
+
+closeDayEventsBtn.addEventListener('click', () => {
+    dayEventsModalOverlay.classList.remove('active');
+});
+
+dayEventsModalOverlay.addEventListener('click', (e) => {
+    if (e.target === dayEventsModalOverlay) {
+        dayEventsModalOverlay.classList.remove('active');
+    }
 });
 
 renderCalendar();
@@ -183,4 +310,87 @@ document.addEventListener('touchmove', (e) => {
 document.addEventListener('touchend', () => {
     isDragging = false;
     floatingMenu.classList.remove('dragging');
+});
+
+// ===========================
+// ОБРАБОТЧИК КНОПКИ ДОБАВЛЕНИЯ СОБЫТИЯ В МЕНЮ
+// ===========================
+const addEventBtnNav = document.getElementById('add-event-btn-nav');
+const eventModalOverlay = document.getElementById('event-modal-overlay');
+const cancelEventBtn = document.getElementById('cancel-event-btn');
+const eventForm = document.getElementById('event-form');
+const eventTypeSelect = document.getElementById('event-type');
+const eventTitleInput = document.getElementById('event-title');
+
+// Открытие модального окна добавления события
+addEventBtnNav.addEventListener('click', () => {
+    eventModalOverlay.classList.add('active');
+    // Устанавливаем сегодняшнюю дату по умолчанию
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('event-date').value = today;
+});
+
+// Закрытие модального окна
+cancelEventBtn.addEventListener('click', () => {
+    eventModalOverlay.classList.remove('active');
+    eventForm.reset();
+});
+
+// Закрытие по клику вне окна
+eventModalOverlay.addEventListener('click', (e) => {
+    if (e.target === eventModalOverlay) {
+        eventModalOverlay.classList.remove('active');
+        eventForm.reset();
+    }
+});
+
+// Обработка отправки формы
+eventForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const type = eventTypeSelect.value;
+    const title = eventTitleInput.value.trim();
+    const date = document.getElementById('event-date').value;
+    const time = document.getElementById('event-time').value;
+    const notes = document.getElementById('event-notes').value.trim();
+    
+    if (!type || !date || !time) {
+        alert('Пожалуйста, заполните все обязательные поля');
+        return;
+    }
+    
+    const newEvent = {
+        id: Date.now(),
+        type: type,
+        title: title,
+        date: date,
+        time: time,
+        notes: notes
+    };
+    
+    weekEvents.push(newEvent);
+    localStorage.setItem('weekEvents', JSON.stringify(weekEvents));
+    
+    eventModalOverlay.classList.remove('active');
+    eventForm.reset();
+    renderCalendar(); // Перерисовываем календарь для обновления индикаторов
+});
+
+// Синхронизация типа события с полем названия
+eventTypeSelect.addEventListener('change', () => {
+    const selectedType = eventTypeSelect.value;
+    if (selectedType === 'other') {
+        eventTitleInput.placeholder = 'Введите название события';
+        eventTitleInput.value = '';
+        eventTitleInput.disabled = false;
+    } else {
+        const typeNames = {
+            'visit': 'Визит к врачу',
+            'analysis': 'Анализы',
+            'ultrasound': 'УЗИ'
+        };
+        eventTitleInput.value = typeNames[selectedType] || '';
+        eventTitleInput.placeholder = 'Название события';
+        eventTitleInput.disabled = false;
+    }
 });

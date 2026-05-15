@@ -61,7 +61,49 @@
         <div class="drag-handle"><span></span></div>
         <button class="active" data-page="page-home">🏠 Главная</button>
         <button data-page="page-profile">👤 Профиль</button>
+        <button id="add-event-btn-nav">📅 Добавить событие</button>
     </nav>
+
+    <!-- ===== МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ СОБЫТИЯ ===== -->
+    <div class="modal-overlay" id="event-modal-overlay">
+        <div class="modal-window" id="event-modal">
+            <h3>Добавить важное событие</h3>
+            <form id="event-form">
+                <label for="event-type">Тип события:</label>
+                <select id="event-type" required>
+                    <option value="">Выберите тип события</option>
+                    <option value="visit">🩺 Визит к врачу</option>
+                    <option value="analysis">🧪 Анализы</option>
+                    <option value="ultrasound">📷 УЗИ</option>
+                    <option value="other">📝 Другое</option>
+                </select>
+                <input type="text" id="event-title" placeholder="Название события" required>
+                
+                <label for="event-date">Дата:</label>
+                <input type="date" id="event-date" required>
+                
+                <label for="event-time">Время:</label>
+                <input type="time" id="event-time" required>
+                
+                <label for="event-notes">Заметки (необязательно):</label>
+                <textarea id="event-notes" rows="3" placeholder="Дополнительная информация"></textarea>
+                
+                <div class="modal-buttons">
+                    <button type="submit" class="save-btn">Сохранить</button>
+                    <button type="button" class="cancel-btn" id="cancel-event-btn">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== МОДАЛЬНОЕ ОКНО ПРОСМОТРА СОБЫТИЙ ДНЯ ===== -->
+    <div class="day-events-modal-overlay" id="day-events-modal-overlay">
+        <div class="day-events-modal-window" id="day-events-modal">
+            <h3 id="day-events-title">События дня</h3>
+            <ul class="day-events-list" id="day-events-list"></ul>
+            <button class="close-day-events-btn" id="close-day-events-btn">Закрыть</button>
+        </div>
+    </div>
 
     <!-- ===== СКРИПТЫ ===== -->
     <script src="static/js/script.js" defer></script>
