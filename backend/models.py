@@ -32,20 +32,22 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     phone = Column(String, nullable=False, default="")
+    age = Column(Integer, nullable=False)
     role = Column(Enum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
+    disclaimer_accepted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     pregnancies = relationship("Pregnancy", back_populates="patient")
 
 
-    doctor_relationships = relationship( "DoctorPatient", foreign_keys="DoctorPatient.doctor_id",back_populates="doctor" )
+    doctor_relationships = relationship("DoctorPatient", foreign_keys="DoctorPatient.doctor_id", back_populates="doctor")
     patient_relationships = relationship("DoctorPatient", foreign_keys="DoctorPatient.patient_id", back_populates="patient")
     partner_access = relationship("PartnerAccess", back_populates="partner")
-    sent_invites = relationship("Invite", foreign_keys="Invite.inviter_id")
+    sent_invites = relationship("Invite", foreign_keys="Invite.inviter_id", back_populates="inviter")
 
     # Чаты
-    ai_chat_rooms = relationship("ChatRoom", foreign_keys="ChatRoom.user_id")
-    sent_messages = relationship("ChatMessage", foreign_keys="ChatMessage.sender_id")
+    ai_chat_rooms = relationship("ChatRoom", foreign_keys="ChatRoom.user_id", back_populates="user")
+    sent_messages = relationship("ChatMessage", foreign_keys="ChatMessage.sender_id", back_populates="sender")
 # ================ Беременности ==================
 class Pregnancy(Base):
     __tablename__ = "pregnancies"
@@ -100,7 +102,7 @@ class DoctorPatient(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     doctor = relationship("User", foreign_keys=[doctor_id], back_populates="doctor_relationships")
-    patient = relationship("User", foreign_keys=[patient_id])
+    patient = relationship("User", foreign_keys=[patient_id], back_populates="patient_relationships")
     pregnancy = relationship("Pregnancy", back_populates="doctors")
 
     __table_args__ = (UniqueConstraint('doctor_id', 'patient_id', 'pregnancy_id', name='_doctor_patient_pregnancy_uc'),)
@@ -131,7 +133,7 @@ class Invite(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    inviter = relationship("User", foreign_keys=[inviter_id])
+    inviter = relationship("User", foreign_keys=[inviter_id], back_populates="sent_invites")
     pregnancy = relationship("Pregnancy")
 
 #==================== Чаты ==========================
@@ -151,6 +153,7 @@ class ChatRoom(Base):
     doctor = relationship("User", foreign_keys=[doctor_id])
     patient = relationship("User", foreign_keys=[patient_id])
     pregnancy = relationship("Pregnancy")
+    user = relationship("User", foreign_keys=[user_id], back_populates="ai_chat_rooms")
     messages = relationship("ChatMessage", back_populates="room")
 
 class ChatMessage(Base):
@@ -164,7 +167,7 @@ class ChatMessage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     room = relationship("ChatRoom", back_populates="messages")
-    sender = relationship("User", foreign_keys=[sender_id])
+    sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
 
 # ================== База знаний =============
 class KnowledgeBase(Base):

@@ -209,6 +209,75 @@ body {
   font-size: 1.2rem;
   color: var(--text-muted);
 }
+/* ===== ПРОВЕРКА СИМПТОМА ===== */
+.symptom-checker-wrapper {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto 20px;
+}
+.symptom-toggle {
+    text-align: center;
+    color: var(--text-main);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 12px 20px;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s;
+    user-select: none;
+    margin: 0;
+}
+.symptom-toggle:hover { background: rgba(var(--primary-rgb), 0.1); }
+.symptom-panel {
+    margin-top: 12px;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: 12px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+.symptom-panel input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(var(--secondary-rgb), 0.5);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.7);
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+.symptom-panel .btn-primary { width: 100%; margin: 0; }
+.symptom-output {
+    margin-top: 16px;
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    animation: fadeIn 0.3s ease;
+}
+.symptom-output.critical {
+    background: rgba(231, 76, 60, 0.1);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    color: #c0392b;
+}
+.symptom-output.concerning {
+    background: rgba(244, 194, 194, 0.2);
+    border: 1px solid rgba(244, 194, 194, 0.4);
+    color: #8b5a5a;
+}
+.symptom-output.informational {
+    background: rgba(163, 177, 138, 0.15);
+    border: 1px solid rgba(163, 177, 138, 0.3);
+    color: #5a6b54;
+}
+.symptom-output pre {
+    white-space: pre-wrap;
+    font-family: inherit;
+    margin: 8px 0 0;
+}
 
 /* ===== КАЛЕНДАРЬ ===== */
 .calendar {
@@ -413,9 +482,10 @@ body {
 /* ===== ИИ-ВИДЖЕТ ===== */
 .ai-widget {
     position: fixed;
-    bottom: 30px;
+    bottom: 90px;
     right: 30px;
     z-index: 2000;
+    transition: opacity 0.3s ease;
 }
 
 /* Кнопка открытия */
@@ -586,6 +656,64 @@ body {
         height: 60vh;
         right: -10px;
     }
+}
+
+/* Поля ввода в карточке настройки (дата + недели) */
+.setup-card-body input[type="date"],
+.setup-card-body input[type="number"] {
+    width: 100%;
+    padding: 14px;
+    border: 1.5px solid rgba(var(--secondary-rgb), 0.5);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 1rem;
+    color: var(--text-main);
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+}
+
+.setup-card-body input[type="date"]:focus,
+.setup-card-body input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15);
+}
+
+/* Подсказка между полями */
+.setup-hint {
+    margin: 8px 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.disclaimer-group {
+    margin: 20px 0 25px;
+}
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+.link-muted {
+    color: var(--primary);
+    text-decoration: underline;
+    text-decoration-color: rgba(var(--primary-rgb), 0.4);
+    transition: color 0.2s;
+}
+.link-muted:hover {
+    color: var(--text-main);
 }
 
 /* ===== СТРАНИЦА ПРОФИЛЯ ===== */

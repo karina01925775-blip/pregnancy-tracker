@@ -12,18 +12,22 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=6)
     full_name: str
     phone: Optional[str] = None
+    age: int = Field(..., ge=14, le=99)
     role: UserRole = UserRole.PATIENT
+    disclaimer_accepted: bool = False
 
 class UserResponse(BaseModel):
     id: int
     email: str
     full_name: str
     role: UserRole
+    age: int
     class Config:
         from_attributes = True
 
 class PregnancyCreate(BaseModel):
-    last_menstruation_date: date
+    last_menstruation_date: Optional[date] = None
+    gestational_week: Optional[int] = Field(None, ge=1, le=42)
 
 class PregnancyResponse(BaseModel):
     id: int
@@ -71,6 +75,10 @@ class InviteResponse(BaseModel):  # нужен для ответа на созд
     invite_link: str
     expires_at: datetime
 
+
+class PartnerInviteCreate(BaseModel):
+    email: Optional[EmailStr] = None
+
 class AcceptInviteRequest(BaseModel):
     token: str
     password: Optional[str] = None
@@ -107,3 +115,38 @@ class AIChatResponse(BaseModel):
     reply: str
     triggered_critical: bool = False
     emergency_actions: Optional[str] = None
+
+
+class PartnerInviteResponse(BaseModel):
+    id: int
+    token: str
+    status: str
+    expires_at: str
+    link: str
+
+
+class TestQuestionResponse(BaseModel):
+    id: int
+    text: str
+    type: str
+    options: List[str] = Field(default_factory=list)
+    required: bool
+    category: str
+
+
+class TestAnswerSubmissionItem(BaseModel):
+    question_id: int
+    answer: str
+
+
+class TestSubmitRequest(BaseModel):
+    pregnancy_id: Optional[int] = None
+    answers: List[TestAnswerSubmissionItem]
+
+
+class TestHistoryItem(BaseModel):
+    id: int
+    question: str
+    answer: str
+    date: Optional[str] = None
+    category: str

@@ -1,34 +1,53 @@
-import sys
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+import hashlib
+import secrets
 from pathlib import Path
+import sys
+from typing import Optional
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta, date
-import secrets
-import hashlib
 
-# Импорты из бэкенда
-from backend.database import get_db, engine
-import backend.models as models
-from backend.models import TestQuestion, TestAnswer
-from backend.auth import router as auth_router
-from backend.auth import get_current_active_user, get_password_hash
-from backend.auth import create_access_token
-from backend.services.ai_assistant import classify_user_message, search_knowledge_base, get_emergency_actions
-from backend.services.pregnancy_utils import calculate_week_and_due_date
+from backend import models
+from backend.services.pregnancy_utils import calculate_trimester_dates, calculate_week_and_due_date, get_pregnancy_period
+from backend.auth import create_access_token, get_current_active_user, get_password_hash, router as auth_router
+from backend.config import STATIC_DIR, TEMPLATES_DIR
+from backend.database import SessionLocal, engine, get_db
+from backend.schemas import (
+    AIChatRequest,
+    AcceptInviteRequest,
+    ChatMessageCreate,
+    EventCreate,
+    InviteCreate,
+    PartnerInviteCreate,
+    PregnancyCreate,
+    SymptomCreate,
+    TestHistoryItem,
+    TestQuestionResponse,
+    TestSubmitRequest,
+)
+from backend.services.ai_assistant import classify_user_message, get_emergency_actions, search_knowledge_base
+from backend.services.pregnancy_utils import calculate_trimester_dates, calculate_week_and_due_date
+from backend.services.test_service import (
+    ensure_test_questions_seeded,
+    get_history_window,
+    save_daily_test_answers,
+    serialize_answer,
+    serialize_question,
+)
 
-# Создаём таблицы
-models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Мама рядом API", version="1.0.0")
+app = FastAPI(title="Мама рядом API", version="1.1.0")
 
-# CORS настройки
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,33 +56,120 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем статику
-static_path = Path(__file__).parent / "app/static"
-if not static_path.exists():
-    static_path = Path(__file__).parent.parent / "app/static"
-if static_path.exists():
-    app.mount("/app/static", StaticFiles(directory=str(static_path)), name="static")
+if STATIC_DIR.exists():
+    app.mount("/app/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static-legacy")
 
-# Подключаем шаблоны
-templates = Jinja2Templates(directory="app/templates")
-
-# Подключаем роутер аутентификации
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app.include_router(auth_router)
 
 
-# ========== Вспомогательные функции ==========
+@app.on_event("startup")
+def startup() -> None:
+    models.Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ensure_test_questions_seeded(db)
+    finally:
+        db.close()
+
+
 def generate_invite_token(email: str, role: str, pregnancy_id: int) -> str:
     random_part = secrets.token_urlsafe(32)
-    data = f"{email}:{role}:{pregnancy_id}:{random_part}"
-    return hashlib.sha256(data.encode()).hexdigest()
+    payload = f"{email}:{role}:{pregnancy_id}:{random_part}"
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def create_invite_link(token: str) -> str:
-    return f"https://mama-ryadom.ru/register/invite?token={token}"
+def build_invite_link(request: Request, token: str) -> str:
+    base_url = str(request.base_url).rstrip("/")
+    return f"{base_url}/auth/register?token={token}"
 
 
-# ========== HTML СТРАНИЦЫ ==========
-context = {"name": "Диана", "range_start": "2026-04-05", "range_end": "2026-04-15"}
+def get_active_pregnancy_for_user(db: Session, user: models.User) -> Optional[models.Pregnancy]:
+    if user.role == models.UserRole.PATIENT:
+        return (
+            db.query(models.Pregnancy)
+            .filter(
+                models.Pregnancy.patient_id == user.id,
+                models.Pregnancy.status == models.PregnancyStatus.ACTIVE,
+            )
+            .first()
+        )
+
+    if user.role == models.UserRole.PARTNER:
+        access = (
+            db.query(models.PartnerAccess)
+            .filter(models.PartnerAccess.partner_id == user.id, models.PartnerAccess.can_view.is_(True))
+            .first()
+        )
+        if not access:
+            return None
+        return db.query(models.Pregnancy).filter(models.Pregnancy.id == access.pregnancy_id).first()
+
+    if user.role == models.UserRole.DOCTOR:
+        relation = db.query(models.DoctorPatient).filter(models.DoctorPatient.doctor_id == user.id).first()
+        if not relation:
+            return None
+        return db.query(models.Pregnancy).filter(models.Pregnancy.id == relation.pregnancy_id).first()
+
+    return None
+
+
+def ensure_pregnancy_access(
+    db: Session,
+    user: models.User,
+    pregnancy_id: int,
+    *,
+    write_access: bool = False,
+) -> models.Pregnancy:
+    pregnancy = db.query(models.Pregnancy).filter(models.Pregnancy.id == pregnancy_id).first()
+    if pregnancy is None:
+        raise HTTPException(status_code=404, detail="Беременность не найдена")
+
+    if user.role == models.UserRole.PATIENT:
+        if pregnancy.patient_id != user.id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+        return pregnancy
+
+    if user.role == models.UserRole.PARTNER:
+        access = (
+            db.query(models.PartnerAccess)
+            .filter(
+                models.PartnerAccess.partner_id == user.id,
+                models.PartnerAccess.pregnancy_id == pregnancy_id,
+                models.PartnerAccess.can_view.is_(True),
+            )
+            .first()
+        )
+        if access is None:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+        if write_access:
+            raise HTTPException(status_code=403, detail="Партнёр может только просматривать данные")
+        return pregnancy
+
+    if user.role == models.UserRole.DOCTOR:
+        relation = (
+            db.query(models.DoctorPatient)
+            .filter(
+                models.DoctorPatient.doctor_id == user.id,
+                models.DoctorPatient.pregnancy_id == pregnancy_id,
+            )
+            .first()
+        )
+        if relation is None:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+        return pregnancy
+
+    raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+
+def serialize_pregnancy(pregnancy: models.Pregnancy) -> dict:
+    return {
+        "id": pregnancy.id,
+        "due_date": pregnancy.due_date.isoformat() if pregnancy.due_date else None,
+        "status": pregnancy.status.value,
+        "last_menstruation_date": pregnancy.last_menstruation_date.isoformat(),
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -72,121 +178,127 @@ async def home(request: Request):
         request=request,
         name="index.html",
         context={
-            "name": context["name"],
-            "range_start": context["range_start"],
-            "range_end": context["range_end"],
-            "current_date": date.today().strftime("%d.%m.%Y")
-        }
+            "name": "Гость",
+            "email": "",
+            "range_start": "",
+            "range_end": "",
+            "current_date": date.today().strftime("%d.%m.%Y"),
+        },
     )
 
-@app.get("/auth/login", response_class=HTMLResponse)
+
+@app.get("/login")
+async def login_redirect():
+    return RedirectResponse(url="/auth/login", status_code=307)
+
+
+@app.get("/register")
+async def register_redirect():
+    return RedirectResponse(url="/auth/register", status_code=307)
+
+
+@app.get("/auth/login", response_class=HTMLResponse, name="login_page")
 async def login_page(request: Request):
     return templates.TemplateResponse(request=request, name="login.html")
 
-@app.get("/auth/register", response_class=HTMLResponse)
+
+@app.get("/auth/register", response_class=HTMLResponse, name="register_page")
 async def register_page(request: Request):
     return templates.TemplateResponse(request=request, name="login.html")
 
 
-@app.get("/profile", response_class=HTMLResponse)
-async def profile_page(request: Request):
-    return templates.TemplateResponse(request=request, name="profile.html")
+@app.get("/profile")
+async def profile_redirect():
+    return RedirectResponse(url="/", status_code=307)
 
+@app.get("/disclaimer")
+async def disclaimer_page():
+    return RedirectResponse(url="disclaimer.html", status_code=307)
 
-# ========== API ЭНДПОИНТЫ ==========
-
-# ---------- Приглашения ----------
 @app.post("/api/invite")
 def create_invite(
-        invite_data: dict,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    invite_data: InviteCreate,
+    request: Request,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     if current_user.role != models.UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Только пациентки могут приглашать")
 
-    pregnancy = db.query(models.Pregnancy).filter(
-        models.Pregnancy.id == invite_data.get("pregnancy_id"),
-        models.Pregnancy.patient_id == current_user.id
-    ).first()
-    if not pregnancy:
-        raise HTTPException(status_code=404, detail="Беременность не найдена")
+    pregnancy = ensure_pregnancy_access(db, current_user, invite_data.pregnancy_id, write_access=True)
 
-    token = generate_invite_token(
-        invite_data["email"],
-        invite_data["role"],
-        invite_data["pregnancy_id"]
-    )
+    token = generate_invite_token(invite_data.email, invite_data.role.value, pregnancy.id)
     expires_at = datetime.utcnow() + timedelta(days=7)
 
     invite = models.Invite(
         token=token,
         inviter_id=current_user.id,
-        invited_email=invite_data["email"],
-        role=invite_data["role"],
-        pregnancy_id=invite_data["pregnancy_id"],
-        expires_at=expires_at
+        invited_email=invite_data.email,
+        role=invite_data.role,
+        pregnancy_id=invite_data.pregnancy_id,
+        expires_at=expires_at,
     )
     db.add(invite)
     db.commit()
+    db.refresh(invite)
 
-    return {"invite_link": create_invite_link(token), "expires_at": expires_at}
+    return {"invite_link": build_invite_link(request, token), "expires_at": expires_at.isoformat()}
 
 
-# ===========================
-# УПРАВЛЕНИЕ ПРИГЛАШЕНИЯМИ ПАРТНЁРА
-# ===========================
 @app.get("/api/partner-invites")
 def get_partner_invites(
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    request: Request,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     if current_user.role != models.UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Доступ только для пациенток")
 
-    pregnancy = db.query(models.Pregnancy).filter(
-        models.Pregnancy.patient_id == current_user.id,
-        models.Pregnancy.status == models.PregnancyStatus.ACTIVE
-    ).first()
-    if not pregnancy:
+    pregnancy = get_active_pregnancy_for_user(db, current_user)
+    if pregnancy is None:
         raise HTTPException(status_code=400, detail="Активная беременность не найдена")
 
-    invites = db.query(models.Invite).filter(
-        models.Invite.inviter_id == current_user.id,
-        models.Invite.pregnancy_id == pregnancy.id,
-        models.Invite.role == models.UserRole.PARTNER,
-        models.Invite.status == models.InviteStatus.PENDING
-    ).all()
+    invites = (
+        db.query(models.Invite)
+        .filter(
+            models.Invite.inviter_id == current_user.id,
+            models.Invite.pregnancy_id == pregnancy.id,
+            models.Invite.role == models.UserRole.PARTNER,
+            models.Invite.status == models.InviteStatus.PENDING,
+        )
+        .order_by(models.Invite.created_at.desc())
+        .all()
+    )
 
-    base_url = str(request.base_url) if 'request' in locals() else "http://127.0.0.1:8000/"
-    return [{
-        "id": inv.id,
-        "token": inv.token,
-        "status": inv.status.value,
-        "expires_at": inv.expires_at.isoformat(),
-        "link": f"{base_url.rstrip('/')}/auth/register?token={inv.token}"
-    } for inv in invites]
+    return [
+        {
+            "id": invite.id,
+            "token": invite.token,
+            "status": invite.status.value,
+            "expires_at": invite.expires_at.isoformat(),
+            "link": build_invite_link(request, invite.token),
+        }
+        for invite in invites
+    ]
 
 
 @app.post("/api/partner-invites")
 def create_partner_invite(
-        data: dict = None,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    request: Request,
+    data: Optional[PartnerInviteCreate] = None,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     if current_user.role != models.UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Доступ только для пациенток")
 
-    pregnancy = db.query(models.Pregnancy).filter(
-        models.Pregnancy.patient_id == current_user.id,
-        models.Pregnancy.status == models.PregnancyStatus.ACTIVE
-    ).first()
-    if not pregnancy:
+    pregnancy = get_active_pregnancy_for_user(db, current_user)
+    if pregnancy is None:
         raise HTTPException(status_code=400, detail="Активная беременность не найдена")
 
     token = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(days=7)
-    invited_email = data.get("email", f"partner_{token}@invite.mama-ryadom.ru")
+    invited_email = data.email if data and data.email else f"partner_{token[:8]}@invite.mama-ryadom.ru"
 
     invite = models.Invite(
         token=token,
@@ -195,28 +307,33 @@ def create_partner_invite(
         role=models.UserRole.PARTNER,
         pregnancy_id=pregnancy.id,
         status=models.InviteStatus.PENDING,
-        expires_at=expires_at
+        expires_at=expires_at,
     )
     db.add(invite)
     db.commit()
     db.refresh(invite)
 
-    base_url = "http://127.0.0.1:8000/"  # Замените на ваш домен в продакшене
-    return {"id": invite.id, "token": invite.token,
-            "link": f"{base_url.rstrip('/')}/auth/register?token={invite.token}",
-            "expires_at": invite.expires_at.isoformat()}
+    return {
+        "id": invite.id,
+        "token": invite.token,
+        "status": invite.status.value,
+        "link": build_invite_link(request, invite.token),
+        "expires_at": invite.expires_at.isoformat(),
+    }
+
 
 @app.delete("/api/partner-invites/{invite_id}")
 def revoke_partner_invite(
-        invite_id: int,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    invite_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    invite = db.query(models.Invite).filter(
-        models.Invite.id == invite_id,
-        models.Invite.inviter_id == current_user.id
-    ).first()
-    if not invite:
+    invite = (
+        db.query(models.Invite)
+        .filter(models.Invite.id == invite_id, models.Invite.inviter_id == current_user.id)
+        .first()
+    )
+    if invite is None:
         raise HTTPException(status_code=404, detail="Приглашение не найдено")
     if invite.status == models.InviteStatus.ACCEPTED:
         raise HTTPException(status_code=400, detail="Нельзя отозвать уже принятое приглашение")
@@ -225,240 +342,267 @@ def revoke_partner_invite(
     db.commit()
     return {"message": "Приглашение успешно отозвано"}
 
-@app.post("/api/invite/accept")
-def accept_invite(
-        data: dict,
-        db: Session = Depends(get_db)
-):
-    token = data.get("token")
-    if not token:
-        raise HTTPException(status_code=400, detail="Токен не указан")
 
-    invite = db.query(models.Invite).filter(
-        models.Invite.token == token,
-        models.Invite.status == models.InviteStatus.PENDING
-    ).first()
-    if not invite:
+@app.post("/api/invite/accept")
+def accept_invite(data: AcceptInviteRequest, db: Session = Depends(get_db)):
+    invite = (
+        db.query(models.Invite)
+        .filter(models.Invite.token == data.token, models.Invite.status == models.InviteStatus.PENDING)
+        .first()
+    )
+    if invite is None:
         raise HTTPException(status_code=404, detail="Приглашение не найдено или уже использовано")
     if invite.expires_at < datetime.utcnow():
         invite.status = models.InviteStatus.EXPIRED
         db.commit()
         raise HTTPException(status_code=400, detail="Срок приглашения истёк")
 
-    if invite.role == models.UserRole.PARTNER:
-        full_name = data.get("full_name", "Партнёр")
-        # Генерируем технические учётные данные (пользователь их не видит)
-        tech_email = f"partner_{token[:8]}_{invite.id}@invite.mama-ryadom.ru"
-        tech_password = secrets.token_urlsafe(12) + "A1!"
+    if invite.role != models.UserRole.PARTNER:
+        raise HTTPException(status_code=400, detail="Этот тип приглашения обрабатывается иначе")
 
-        user = db.query(models.User).filter(models.User.email == tech_email).first()
-        if not user:
-            user = models.User(
-                email=tech_email,
-                hashed_password=get_password_hash(tech_password),
-                full_name=full_name,
-                phone="",
-                role=models.UserRole.PARTNER
+    full_name = (data.full_name or "Партнёр").strip()
+    technical_email = f"partner_{invite.token[:8]}_{invite.id}@invite.mama-ryadom.ru"
+    technical_password = secrets.token_urlsafe(12) + "A1!"
+
+    user = db.query(models.User).filter(models.User.email == technical_email).first()
+    if user is None:
+        user = models.User(
+            email=technical_email,
+            hashed_password=get_password_hash(technical_password),
+            full_name=full_name,
+            phone="",
+            role=models.UserRole.PARTNER,
+        )
+        db.add(user)
+        db.flush()
+
+    existing_access = (
+        db.query(models.PartnerAccess)
+        .filter(
+            models.PartnerAccess.partner_id == user.id,
+            models.PartnerAccess.pregnancy_id == invite.pregnancy_id,
+        )
+        .first()
+    )
+    if existing_access is None:
+        db.add(
+            models.PartnerAccess(
+                partner_id=user.id,
+                pregnancy_id=invite.pregnancy_id,
+                can_view=True,
             )
-            db.add(user)
-            db.flush()  # Получаем user.id
+        )
 
-        # Создаём доступ к беременности
-        existing = db.query(models.PartnerAccess).filter_by(
-            partner_id=user.id, pregnancy_id=invite.pregnancy_id
-        ).first()
-        if not existing:
-            db.add(models.PartnerAccess(partner_id=user.id, pregnancy_id=invite.pregnancy_id, can_view=True))
+    invite.status = models.InviteStatus.ACCEPTED
+    db.commit()
 
-        invite.status = models.InviteStatus.ACCEPTED
-        db.commit()
-
-        # Возвращаем JWT → фронтенд сразу сохранит его и войдёт в систему
-        return {"access_token": create_access_token(data={"sub": str(user.id)}), "token_type": "bearer"}
-
-    raise HTTPException(status_code=400, detail="Этот тип приглашения обрабатывается иначе")
+    return {"access_token": create_access_token(data={"sub": str(user.id)}), "token_type": "bearer"}
 
 
-# ---------- Беременности ----------
 @app.post("/api/pregnancies")
 def create_pregnancy(
-        data: dict,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
-    ):
+    data: PregnancyCreate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
     if current_user.role != models.UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Только пациентки могут создавать беременности")
 
-    # 1. Получаем строку даты из запроса
-    lmp_str = data.get("last_menstruation_date")
-    if not lmp_str:
-        raise HTTPException(status_code=400, detail="Укажите дату начала беременности")
+    existing_active = get_active_pregnancy_for_user(db, current_user)
+    if existing_active is not None:
+        raise HTTPException(status_code=400, detail="У вас уже есть активная беременность")
 
-    # 2. Преобразуем строку 'YYYY-MM-DD' в объект datetime.date
-    try:
-        lmp_date = datetime.strptime(lmp_str, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Неверный формат даты. Используйте ГГГГ-ММ-ДД")
+    lmp = data.last_menstruation_date
+    if lmp is None and data.gestational_week:
+        lmp = date.today() - timedelta(days=data.gestational_week * 7)
+    if lmp is None:
+        raise HTTPException(status_code=400, detail="Укажите дату последней менструации или срок в неделях")
 
-    # 3. Рассчитываем дату родов (LMP + 280 дней)
-    due_date = lmp_date + timedelta(days=280)
-
-    # 4. Рассчитываем даты триместров (опционально, но лучше заполнить, чтобы не было NULL)
-    second_trimester = lmp_date + timedelta(days=91)  # ~13 недель
-    third_trimester = lmp_date + timedelta(days=182)  # ~26 недель
+    _, due_date = calculate_week_and_due_date(lmp)
+    second_trimester, third_trimester = calculate_trimester_dates(lmp)
 
     pregnancy = models.Pregnancy(
         patient_id=current_user.id,
-        last_menstruation_date=lmp_date,  # <-- Теперь это объект date
+        last_menstruation_date=lmp,
         second_trimester_date=second_trimester,
         third_trimester_date=third_trimester,
         due_date=due_date,
-        status=models.PregnancyStatus.ACTIVE
+        status=models.PregnancyStatus.ACTIVE,
     )
-
     db.add(pregnancy)
     db.commit()
     db.refresh(pregnancy)
 
+    current_week, _ = calculate_week_and_due_date(lmp)
+    period = get_pregnancy_period(current_week)
+
     return {
         "id": pregnancy.id,
-        "due_date": pregnancy.due_date.isoformat(),
-        "status": pregnancy.status.value
+        "due_date": due_date.isoformat() if due_date else None,
+        "status": pregnancy.status.value,
+        "last_menstruation_date": lmp.isoformat(),
+        "current_week": current_week,
+        "period": period
     }
+
 
 @app.get("/api/pregnancies")
 def get_pregnancies(
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     if current_user.role == models.UserRole.PATIENT:
         pregnancies = db.query(models.Pregnancy).filter(models.Pregnancy.patient_id == current_user.id).all()
     elif current_user.role == models.UserRole.PARTNER:
-        pregnancies = db.query(models.Pregnancy).join(models.PartnerAccess).filter(
-            models.PartnerAccess.partner_id == current_user.id
-        ).all()
+        pregnancies = (
+            db.query(models.Pregnancy)
+            .join(models.PartnerAccess, models.PartnerAccess.pregnancy_id == models.Pregnancy.id)
+            .filter(models.PartnerAccess.partner_id == current_user.id)
+            .all()
+        )
     elif current_user.role == models.UserRole.DOCTOR:
-        pregnancies = db.query(models.Pregnancy).join(models.DoctorPatient).filter(
-            models.DoctorPatient.doctor_id == current_user.id
-        ).all()
+        pregnancies = (
+            db.query(models.Pregnancy)
+            .join(models.DoctorPatient, models.DoctorPatient.pregnancy_id == models.Pregnancy.id)
+            .filter(models.DoctorPatient.doctor_id == current_user.id)
+            .all()
+        )
     else:
         pregnancies = []
 
-    return [{"id": p.id, "due_date": p.due_date, "status": p.status} for p in pregnancies]
+    return [serialize_pregnancy(pregnancy) for pregnancy in pregnancies]
 
 
-# ---------- События ----------
 @app.post("/api/pregnancies/{pregnancy_id}/events")
 def create_event(
-        pregnancy_id: int,
-        data: dict,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    pregnancy_id: int,
+    data: EventCreate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    pregnancy = db.query(models.Pregnancy).filter(models.Pregnancy.id == pregnancy_id).first()
-    if not pregnancy:
-        raise HTTPException(status_code=404, detail="Беременность не найдена")
-
-    if current_user.role == models.UserRole.PATIENT and pregnancy.patient_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
+    ensure_pregnancy_access(db, current_user, pregnancy_id, write_access=True)
 
     event = models.Event(
         pregnancy_id=pregnancy_id,
-        title=data["title"],
-        description=data.get("description"),
-        event_date=data["event_date"],
-        week_of_pregnancy=data["week_of_pregnancy"]
+        title=data.title,
+        description=data.description,
+        event_date=data.event_date,
+        week_of_pregnancy=data.week_of_pregnancy,
     )
     db.add(event)
     db.commit()
     db.refresh(event)
-    return {"id": event.id, "title": event.title, "event_date": event.event_date}
+
+    return {
+        "id": event.id,
+        "title": event.title,
+        "description": event.description,
+        "event_date": event.event_date.isoformat(),
+        "week_of_pregnancy": event.week_of_pregnancy,
+    }
 
 
 @app.get("/api/pregnancies/{pregnancy_id}/events")
 def get_events(
-        pregnancy_id: int,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    pregnancy_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    events = db.query(models.Event).filter(models.Event.pregnancy_id == pregnancy_id).all()
+    ensure_pregnancy_access(db, current_user, pregnancy_id)
+    events = (
+        db.query(models.Event)
+        .filter(models.Event.pregnancy_id == pregnancy_id)
+        .order_by(models.Event.event_date.asc())
+        .all()
+    )
+
     return [
-        {"id": e.id, "title": e.title, "description": e.description,
-         "event_date": e.event_date, "week_of_pregnancy": e.week_of_pregnancy}
-        for e in events
+        {
+            "id": event.id,
+            "title": event.title,
+            "description": event.description,
+            "event_date": event.event_date.isoformat(),
+            "week_of_pregnancy": event.week_of_pregnancy,
+            "status": event.status,
+        }
+        for event in events
     ]
 
 
-# ---------- Симптомы ----------
 @app.post("/api/pregnancies/{pregnancy_id}/symptoms")
 def create_symptom(
-        pregnancy_id: int,
-        data: dict,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    pregnancy_id: int,
+    data: SymptomCreate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     if current_user.role != models.UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Только пациентки могут добавлять симптомы")
 
-    text_lower = data["symptom_text"].lower()
-    critical = ["кровотечение", "кровь", "сильная боль", "обморок", "температура 39"]
-    concerning = ["головная боль", "отеки", "выделения", "тошнота", "давление"]
+    ensure_pregnancy_access(db, current_user, pregnancy_id, write_access=True)
 
-    if any(kw in text_lower for kw in critical):
-        classification = "critical"
-    elif any(kw in text_lower for kw in concerning):
-        classification = "concerning"
-    else:
-        classification = "informational"
+    classification, recommendation = classify_user_message(data.symptom_text)
 
     symptom = models.SymptomEntry(
         pregnancy_id=pregnancy_id,
-        symptom_text=data["symptom_text"],
-        classification=classification
+        symptom_text=data.symptom_text,
+        classification=classification,
     )
     db.add(symptom)
     db.commit()
-    return {"id": symptom.id, "classification": classification}
+    db.refresh(symptom)
+
+    return {
+        "id": symptom.id,
+        "classification": classification,
+        "recommendation": recommendation,
+    }
 
 
-# ---------- Чат с врачом ----------
 @app.post("/api/chat/doctor/create/{pregnancy_id}")
 def create_doctor_chat(
-        pregnancy_id: int,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    pregnancy_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    pregnancy = db.query(models.Pregnancy).filter(models.Pregnancy.id == pregnancy_id).first()
-    if not pregnancy:
-        raise HTTPException(status_code=404, detail="Беременность не найдена")
+    pregnancy = ensure_pregnancy_access(db, current_user, pregnancy_id)
 
     if current_user.role == models.UserRole.PATIENT:
         patient_id = current_user.id
-        doctor_link = db.query(models.DoctorPatient).filter(
-            models.DoctorPatient.pregnancy_id == pregnancy_id
-        ).first()
-        if not doctor_link:
+        relation = (
+            db.query(models.DoctorPatient)
+            .filter(models.DoctorPatient.pregnancy_id == pregnancy_id)
+            .first()
+        )
+        if relation is None:
             raise HTTPException(status_code=404, detail="Врач не привязан")
-        doctor_id = doctor_link.doctor_id
+        doctor_id = relation.doctor_id
     elif current_user.role == models.UserRole.DOCTOR:
         doctor_id = current_user.id
-        doctor_link = db.query(models.DoctorPatient).filter(
-            models.DoctorPatient.doctor_id == doctor_id,
-            models.DoctorPatient.pregnancy_id == pregnancy_id
-        ).first()
-        if not doctor_link:
-            raise HTTPException(status_code=403, detail="Вы не привязаны")
-        patient_id = doctor_link.patient_id
+        relation = (
+            db.query(models.DoctorPatient)
+            .filter(
+                models.DoctorPatient.doctor_id == doctor_id,
+                models.DoctorPatient.pregnancy_id == pregnancy_id,
+            )
+            .first()
+        )
+        if relation is None:
+            raise HTTPException(status_code=403, detail="Вы не привязаны к этой беременности")
+        patient_id = relation.patient_id
     else:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
 
-    existing_room = db.query(models.ChatRoom).filter(
-        models.ChatRoom.chat_type == models.ChatType.DOCTOR_PATIENT,
-        models.ChatRoom.doctor_id == doctor_id,
-        models.ChatRoom.patient_id == patient_id,
-        models.ChatRoom.pregnancy_id == pregnancy_id
-    ).first()
-
+    existing_room = (
+        db.query(models.ChatRoom)
+        .filter(
+            models.ChatRoom.chat_type == models.ChatType.DOCTOR_PATIENT,
+            models.ChatRoom.doctor_id == doctor_id,
+            models.ChatRoom.patient_id == patient_id,
+            models.ChatRoom.pregnancy_id == pregnancy.id,
+        )
+        .first()
+    )
     if existing_room:
         return {"room_id": existing_room.id}
 
@@ -466,105 +610,111 @@ def create_doctor_chat(
         chat_type=models.ChatType.DOCTOR_PATIENT,
         doctor_id=doctor_id,
         patient_id=patient_id,
-        pregnancy_id=pregnancy_id
+        pregnancy_id=pregnancy.id,
     )
     db.add(room)
     db.commit()
+    db.refresh(room)
     return {"room_id": room.id}
+
+
+def ensure_room_access(db: Session, room_id: int, current_user: models.User) -> models.ChatRoom:
+    room = db.query(models.ChatRoom).filter(models.ChatRoom.id == room_id).first()
+    if room is None:
+        raise HTTPException(status_code=404, detail="Чат не найден")
+
+    if room.chat_type == models.ChatType.AI_ASSISTANT and room.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    if room.chat_type == models.ChatType.DOCTOR_PATIENT and current_user.id not in {room.patient_id, room.doctor_id}:
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    return room
 
 
 @app.post("/api/chat/room/{room_id}/send")
 def send_message(
-        room_id: int,
-        data: dict,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    room_id: int,
+    data: ChatMessageCreate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    room = db.query(models.ChatRoom).filter(models.ChatRoom.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="Чат не найден")
+    ensure_room_access(db, room_id, current_user)
 
-    message = models.ChatMessage(
-        room_id=room_id,
-        sender_id=current_user.id,
-        message=data["message"]
-    )
+    message = models.ChatMessage(room_id=room_id, sender_id=current_user.id, message=data.message)
     db.add(message)
     db.commit()
-    return {"message_id": message.id, "created_at": message.created_at}
+    db.refresh(message)
+
+    return {"message_id": message.id, "created_at": message.created_at.isoformat()}
 
 
 @app.get("/api/chat/room/{room_id}/messages")
 def get_messages(
-        room_id: int,
-        limit: int = 50,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    room_id: int,
+    limit: int = 50,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    messages = db.query(models.ChatMessage).filter(
-        models.ChatMessage.room_id == room_id
-    ).order_by(models.ChatMessage.created_at).limit(limit).all()
+    ensure_room_access(db, room_id, current_user)
+
+    messages = (
+        db.query(models.ChatMessage)
+        .filter(models.ChatMessage.room_id == room_id)
+        .order_by(models.ChatMessage.created_at.asc())
+        .limit(limit)
+        .all()
+    )
 
     return [
         {
-            "id": m.id,
-            "sender_id": m.sender_id,
-            "message": m.message,
-            "created_at": m.created_at
-        } for m in messages
+            "id": message.id,
+            "sender_id": message.sender_id,
+            "message": message.message,
+            "created_at": message.created_at.isoformat() if message.created_at else None,
+        }
+        for message in messages
     ]
 
 
-# ---------- ИИ-ассистент ----------
 @app.post("/api/chat/ai/create")
 def create_ai_chat(
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    existing_room = db.query(models.ChatRoom).filter(
-        models.ChatRoom.chat_type == models.ChatType.AI_ASSISTANT,
-        models.ChatRoom.user_id == current_user.id,
-        models.ChatRoom.is_active == True
-    ).first()
-
+    existing_room = (
+        db.query(models.ChatRoom)
+        .filter(
+            models.ChatRoom.chat_type == models.ChatType.AI_ASSISTANT,
+            models.ChatRoom.user_id == current_user.id,
+            models.ChatRoom.is_active.is_(True),
+        )
+        .first()
+    )
     if existing_room:
         return {"room_id": existing_room.id}
 
-    room = models.ChatRoom(
-        chat_type=models.ChatType.AI_ASSISTANT,
-        user_id=current_user.id
-    )
+    room = models.ChatRoom(chat_type=models.ChatType.AI_ASSISTANT, user_id=current_user.id)
     db.add(room)
     db.commit()
+    db.refresh(room)
     return {"room_id": room.id}
 
 
 @app.post("/api/chat/ai/{room_id}/ask")
 def ask_ai(
-        room_id: int,
-        data: dict,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    room_id: int,
+    data: AIChatRequest,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    room = db.query(models.ChatRoom).filter(
-        models.ChatRoom.id == room_id,
-        models.ChatRoom.user_id == current_user.id
-    ).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="ИИ-чат не найден")
+    ensure_room_access(db, room_id, current_user)
 
-    # Сохраняем сообщение пользователя
-    user_message = models.ChatMessage(
-        room_id=room_id,
-        sender_id=current_user.id,
-        message=data["message"]
-    )
+    user_message = models.ChatMessage(room_id=room_id, sender_id=current_user.id, message=data.message)
     db.add(user_message)
     db.commit()
 
-    # Классифицируем и ищем ответ
-    classification, recommendation = classify_user_message(data["message"])
-
+    classification, recommendation = classify_user_message(data.message)
     if classification == "critical":
         answer = f"🚨 {recommendation}\n\n{get_emergency_actions()}"
         triggered_critical = True
@@ -572,189 +722,170 @@ def ask_ai(
         answer = f"⚠️ {recommendation}\n\nРекомендуем обратиться к врачу."
         triggered_critical = False
     else:
-        # Ищем в базе знаний
-        pregnancy_id = data.get("pregnancy_id")
-        if not pregnancy_id:
-            active_pregnancy = db.query(models.Pregnancy).filter(
-                models.Pregnancy.patient_id == current_user.id,
-                models.Pregnancy.status == models.PregnancyStatus.ACTIVE
-            ).first()
-            if active_pregnancy:
+        pregnancy_id = data.pregnancy_id
+        if pregnancy_id is None:
+            active_pregnancy = get_active_pregnancy_for_user(db, current_user)
+            if active_pregnancy is not None:
                 pregnancy_id = active_pregnancy.id
-        answer = search_knowledge_base(db, data["message"], pregnancy_id)
+
+        answer = search_knowledge_base(db, data.message, pregnancy_id)
         triggered_critical = False
 
     ai_message = models.ChatMessage(
         room_id=room_id,
         sender_id=current_user.id,
         message=answer,
-        triggered_critical=triggered_critical
+        triggered_critical=triggered_critical,
     )
     db.add(ai_message)
     db.commit()
 
     return {"reply": answer, "triggered_critical": triggered_critical}
 
-# Вспомогательная функция для сохранения (чтобы не дублировать код)
-def save_ai_message(db, room_id, user_id, message_text, is_critical):
-    ai_msg = models.ChatMessage(
-        room_id=room_id,
-        sender_id=user_id, # Или ID бота, если есть
-        message=message_text,
-        triggered_critical=is_critical
-    )
-    db.add(ai_msg)
-    db.commit()
 
-# ---------- Дашборд ----------
 @app.get("/api/dashboard")
 def dashboard(
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    active_pregnancy = None
+    active_pregnancy = get_active_pregnancy_for_user(db, current_user)
     current_week = None
     followed_patient_name = None
 
-    if current_user.role == models.UserRole.PATIENT:
-        active_pregnancy = db.query(models.Pregnancy).filter(
-            models.Pregnancy.patient_id == current_user.id,
-            models.Pregnancy.status == models.PregnancyStatus.ACTIVE
-        ).first()
-        if active_pregnancy:
-            current_week = max(1, ((date.today() - active_pregnancy.last_menstruation_date).days // 7) + 1)
+    if active_pregnancy is not None:
+        current_week, _ = calculate_week_and_due_date(active_pregnancy.last_menstruation_date)
 
-    elif current_user.role == models.UserRole.PARTNER:
-        access = db.query(models.PartnerAccess).filter(
-            models.PartnerAccess.partner_id == current_user.id
-        ).first()
-        if access:
-            pregnancy = db.query(models.Pregnancy).filter(models.Pregnancy.id == access.pregnancy_id).first()
-            if pregnancy:
-                active_pregnancy = pregnancy
-                patient = db.query(models.User).filter(models.User.id == pregnancy.patient_id).first()
-                followed_patient_name = patient.full_name if patient else "Не указано"
-                current_week = max(1, ((date.today() - pregnancy.last_menstruation_date).days // 7) + 1)
+    if current_user.role == models.UserRole.PARTNER and active_pregnancy is not None:
+        patient = db.query(models.User).filter(models.User.id == active_pregnancy.patient_id).first()
+        followed_patient_name = patient.full_name if patient else None
 
     return {
         "user": {
             "id": current_user.id,
             "full_name": current_user.full_name,
             "email": current_user.email,
-            "role": current_user.role.value
+            "role": current_user.role.value,
         },
         "active_pregnancy": {
             "id": active_pregnancy.id,
             "current_week": current_week,
-            "last_menstruation_date": active_pregnancy.last_menstruation_date,
-            "due_date": active_pregnancy.due_date
-        } if active_pregnancy else None,
-        "followed_patient_name": followed_patient_name
+            "last_menstruation_date": active_pregnancy.last_menstruation_date.isoformat(),
+            "due_date": active_pregnancy.due_date.isoformat() if active_pregnancy.due_date else None,
+        }
+        if active_pregnancy
+        else None,
+        "followed_patient_name": followed_patient_name,
     }
 
 
-# ---------- Врач: мои пациентки ----------
 @app.get("/api/my-patients")
 def get_my_patients(
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     if current_user.role != models.UserRole.DOCTOR:
         raise HTTPException(status_code=403, detail="Доступно только врачам")
 
-    patients = db.query(models.User).join(models.DoctorPatient).filter(
-        models.DoctorPatient.doctor_id == current_user.id
-    ).distinct().all()
+    patients = (
+        db.query(models.User)
+        .join(models.DoctorPatient, models.DoctorPatient.patient_id == models.User.id)
+        .filter(models.DoctorPatient.doctor_id == current_user.id)
+        .distinct()
+        .all()
+    )
 
     return [
-        {
-            "id": p.id,
-            "full_name": p.full_name,
-            "email": p.email,
-            "phone": p.phone
-        } for p in patients
+        {"id": patient.id, "full_name": patient.full_name, "email": patient.email, "phone": patient.phone}
+        for patient in patients
     ]
 
 
-# ===== ПОЛУЧИТЬ СПИСОК ВОПРОСОВ =====
-@app.get("/api/test/questions")
+@app.get("/api/test/questions", response_model=list[TestQuestionResponse])
 def get_test_questions(
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    questions = db.query(models.TestQuestion).order_by(models.TestQuestion.order_index).all()
-    return [{
-        "id": q.id,
-        "text": q.question_text,
-        "type": q.question_type,
-        "options": q.options.split("|") if q.options else None,
-        "required": q.is_required
-    } for q in questions]
+    _ = current_user
+    ensure_test_questions_seeded(db)
+    questions = db.query(models.TestQuestion).order_by(models.TestQuestion.order_index.asc()).all()
+    return [serialize_question(question) for question in questions]
 
 
-# ===== СОХРАНИТЬ ОТВЕТЫ ПОЛЬЗОВАТЕЛЯ =====
 @app.post("/api/test/submit")
 def submit_test_answers(
-        data: dict,
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    data: TestSubmitRequest,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    pregnancy_id = data.get("pregnancy_id")
-    answers = data.get("answers", [])  # [{"question_id": 1, "answer": "..."}, ...]
+    if current_user.role != models.UserRole.PATIENT:
+        raise HTTPException(status_code=403, detail="Тест самочувствия доступен только пациентке")
 
-    for ans in answers:
-        question = db.query(models.TestQuestion).filter(
-            models.TestQuestion.id == ans["question_id"]
-        ).first()
-        if not question:
-            continue
+    pregnancy_id = data.pregnancy_id
+    if pregnancy_id is None:
+        active_pregnancy = get_active_pregnancy_for_user(db, current_user)
+        if active_pregnancy is None:
+            raise HTTPException(status_code=400, detail="Сначала укажите дату беременности")
+        pregnancy_id = active_pregnancy.id
+    else:
+        ensure_pregnancy_access(db, current_user, pregnancy_id, write_access=True)
 
-        # Определяем тип ответа
-        answer_text = None
-        selected_option = None
-        if question.question_type == "text":
-            answer_text = ans.get("answer", "")
-        else:
-            selected_option = ans.get("answer", "")
+    saved_count = save_daily_test_answers(
+        db,
+        user_id=current_user.id,
+        pregnancy_id=pregnancy_id,
+        answers=[answer.dict() for answer in data.answers],
+    )
+    if saved_count == 0:
+        raise HTTPException(status_code=400, detail="Не удалось сохранить ответы")
 
-        # Сохраняем
-        test_answer = models.TestAnswer(
-            user_id=current_user.id,
-            question_id=question.id,
-            pregnancy_id=pregnancy_id,
-            answer_text=answer_text,
-            selected_option=selected_option
-        )
-        db.add(test_answer)
-
-    db.commit()
-    return {"message": "Ответы успешно сохранены"}
+    return {"message": "Ответы успешно сохранены", "saved_count": saved_count}
 
 
-# ===== ПОЛУЧИТЬ ИСТОРИЮ ТЕСТОВ ПОЛЬЗОВАТЕЛЯ =====
-@app.get("/api/test/history")
+@app.get("/api/test/history", response_model=list[TestHistoryItem])
 def get_test_history(
-        current_user: models.User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+    target_date: Optional[date] = Query(default=None, alias="date"),
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
-    answers = db.query(models.TestAnswer).filter(
-        models.TestAnswer.user_id == current_user.id
-    ).order_by(models.TestAnswer.created_at.desc()).limit(50).all()
+    query = (
+        db.query(models.TestAnswer)
+        .join(models.TestQuestion, models.TestQuestion.id == models.TestAnswer.question_id)
+        .filter(models.TestAnswer.user_id == current_user.id)
+    )
 
-    return [{
-        "question": ans.question.question_text,
-        "answer": ans.answer_text or ans.selected_option,
-        "date": ans.created_at.isoformat(),
-        "category": ans.question.category
-    } for ans in answers]
+    if target_date is not None:
+        start, end = get_history_window(target_date)
+        query = query.filter(models.TestAnswer.created_at >= start, models.TestAnswer.created_at < end)
 
-# ---------- Health check ----------
+    answers = query.order_by(models.TestAnswer.created_at.desc()).limit(limit).all()
+    return [serialize_answer(answer) for answer in answers]
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 
+@app.post("/api/symptom/analyze")
+def analyze_symptom(
+        data: SymptomCreate,
+        current_user: models.User = Depends(get_current_active_user)
+):
+    classification, recommendation = classify_user_message(data.symptom_text)
+
+    result = {
+        "classification": classification,
+        "recommendation": recommendation or "Симптом не требует срочного вмешательства. При усилении обратитесь к врачу."
+    }
+
+    if classification == "critical":
+        result["actions"] = get_emergency_actions()
+
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)

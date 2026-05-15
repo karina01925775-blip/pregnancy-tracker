@@ -42,6 +42,14 @@ async function sendAIMessage() {
     const text = input.value.trim();
     if (!text) return;
 
+    if (!aiRoomId) {
+        await initAIChat();
+    }
+    if (!aiRoomId) {
+        addMessage('bot', 'Не удалось инициализировать чат. Попробуйте позже.');
+        return;
+    }
+
     addMessage('user', text);
     input.value = '';
 

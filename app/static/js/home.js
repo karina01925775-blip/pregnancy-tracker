@@ -1,714 +1,869 @@
-// ===========================
-// ПЕРЕКЛЮЧЕНИЕ СТРАНИЦ
-// ===========================
-const menuButtons = document.querySelectorAll('.floating-menu button[data-page]');
-const pages = document.querySelectorAll('.page');
+const monthNames = [
+    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
 
-menuButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const targetId = btn.dataset.page;
+const categoryLabels = {
+    general: 'Общее состояние',
+    mood: 'Настроение',
+    pain: 'Боль',
+    energy: 'Энергия',
+    sleep: 'Сон',
+    symptoms: 'Симптомы',
+    warning_signs: 'Тревожные признаки',
+    nutrition: 'Питание',
+    baby_movement: 'Шевеления',
+    notes: 'Комментарий'
+};
 
-        pages.forEach(p => p.classList.remove('active'));
-        document.getElementById(targetId).classList.add('active');
+const state = {
+    displayYear: new Date().getFullYear(),
+    displayMonth: new Date().getMonth(),
+    rangeStart: null,
+    rangeEnd: null,
+    currentInviteId: null,
+    isDraggingMenu: false,
+    dragOffsetX: 0,
+    dragOffsetY: 0
+};
 
-        menuButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-    });
-});
+function getToken() {
+    return localStorage.getItem('token');
+}
 
-checkAuthState();
+function authHeaders(withJson = false) {
+    const headers = {};
+    const token = getToken();
 
-// Закрытие баннера вручную
+    if (withJson) {
+        headers['Content-Type'] = 'application/json';
+    }
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
+}
+
+async function fetchJson(url, options = {}) {
+    const response = await fetch(url, options);
+    let data = null;
+
+    try {
+        data = await response.json();
+    } catch (error) {
+        data = null;
+    }
+
+    if (!response.ok) {
+        const message = data?.detail || `Ошибка запроса (${response.status})`;
+        throw new Error(message);
+    }
+
+    return data;
+}
+
+function parseDateOnly(value) {
+    if (!value) {
+        return null;
+    }
+
+    const [year, month, day] = value.split('-').map(Number);
+    if (!year || !month || !day) {
+        return null;
+    }
+
+    return new Date(year, month - 1, day);
+}
+
+function formatApiDate(year, month, day) {
+    const normalizedMonth = String(month + 1).padStart(2, '0');
+    const normalizedDay = String(day).padStart(2, '0');
+    return `${year}-${normalizedMonth}-${normalizedDay}`;
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
 function closeBanner() {
     const banner = document.getElementById('auth-banner');
     if (banner) {
         banner.classList.remove('visible');
     }
 }
-// Делаем функцию доступной для onclick в HTML
-window.closeBanner = closeBanner;
 
-// ===========================
-// ПРОВЕРКА АВТОРИЗАЦИИ
-// ===========================
-function checkAuthState() {
-    const token = localStorage.getItem('token');
-    const banner = document.getElementById('auth-banner');
-    const profileContent = document.getElementById('profile-content');
-    const profilePrompt = document.getElementById('profile-auth-prompt');
-    const setupCard = document.getElementById('preg-setup-card');
-    const dateInput = document.getElementById('preg-start-date');
-    const setBtn = document.getElementById('btn-set-pregnancy');
+function switchPage(targetId, button) {
+    document.querySelectorAll('.page').forEach((page) => page.classList.remove('active'));
+    document.getElementById(targetId)?.classList.add('active');
 
-    // Ограничиваем выбор только прошедшими/текущими днями
-    if (dateInput) {
-        dateInput.max = new Date().toISOString().split("T")[0];
+    document.querySelectorAll('.floating-menu button[data-page]').forEach((menuButton) => {
+        menuButton.classList.remove('active');
+    });
+    button?.classList.add('active');
+}
+
+function initMenuNavigation() {
+    document.querySelectorAll('.floating-menu button[data-page]').forEach((button) => {
+        button.addEventListener('click', () => switchPage(button.dataset.page, button));
+    });
+}
+
+function setCalendarRange(startDateStr, endDateStr) {
+    state.rangeStart = parseDateOnly(startDateStr);
+    state.rangeEnd = parseDateOnly(endDateStr);
+}
+
+function updateCalendarFromDB(startDateStr, endDateStr) {
+    const calendar = document.getElementById('calendar');
+    if (!calendar) {
+        return;
     }
 
-    if (!token) {
-        // 🔴 НЕ АВТОРИЗОВАН
-        if (banner) banner.classList.add('visible');
-        document.body.classList.add('banner-visible');
+    calendar.dataset.rangeStart = startDateStr || '';
+    calendar.dataset.rangeEnd = endDateStr || '';
+    setCalendarRange(startDateStr, endDateStr);
+    renderCalendar();
+}
 
-        // Скрыть кнопку теста для гостей
-        const testWidget = document.getElementById('test-widget');
-        if (testWidget) {
-            testWidget.style.display = 'none';
+function renderCalendar() {
+    const monthYearEl = document.getElementById('month-year');
+    const daysContainer = document.getElementById('calendar-days');
+
+    if (!monthYearEl || !daysContainer) {
+        return;
+    }
+
+    monthYearEl.textContent = `${monthNames[state.displayMonth]} ${state.displayYear}`;
+    daysContainer.innerHTML = '';
+
+    const firstDay = new Date(state.displayYear, state.displayMonth, 1);
+    const lastDay = new Date(state.displayYear, state.displayMonth + 1, 0);
+    const today = new Date();
+
+    let startWeekday = firstDay.getDay();
+    startWeekday = startWeekday === 0 ? 6 : startWeekday - 1;
+
+    const previousMonthLastDay = new Date(state.displayYear, state.displayMonth, 0).getDate();
+    for (let offset = startWeekday - 1; offset >= 0; offset -= 1) {
+        const dayCell = document.createElement('span');
+        dayCell.classList.add('other-month');
+        dayCell.textContent = previousMonthLastDay - offset;
+        daysContainer.appendChild(dayCell);
+    }
+
+    const highlightedStart = state.rangeStart
+        ? new Date(state.rangeStart.getFullYear(), state.rangeStart.getMonth(), state.rangeStart.getDate())
+        : null;
+    const highlightedEnd = state.rangeEnd
+        ? new Date(state.rangeEnd.getFullYear(), state.rangeEnd.getMonth(), state.rangeEnd.getDate())
+        : null;
+
+    for (let day = 1; day <= lastDay.getDate(); day += 1) {
+        const dayCell = document.createElement('span');
+        dayCell.textContent = day;
+
+        const cellDate = new Date(state.displayYear, state.displayMonth, day);
+        const cellTime = cellDate.getTime();
+
+        if (
+            day === today.getDate() &&
+            state.displayMonth === today.getMonth() &&
+            state.displayYear === today.getFullYear()
+        ) {
+            dayCell.classList.add('today');
         }
 
-        if (profileContent) profileContent.style.display = 'none';
-        if (profilePrompt) {
-            profilePrompt.style.display = 'block';
-            profilePrompt.innerHTML = `
-                <h2>🔒 Профиль доступен только после входа</h2>
-                <p>Войдите в аккаунт, чтобы видеть личную статистику и настройки.</p>
-                <a href="/auth/login" class="btn-profile-login">Войти в систему</a>
-            `;
-        }
-    } else {
-        // 🟢 АВТОРИЗОВАН
-        if (banner) banner.classList.remove('visible');
-        document.body.classList.remove('banner-visible');
-
-        if (profilePrompt) profilePrompt.style.display = 'none';
-        if (profileContent) profileContent.style.display = 'block';
-
-        loadPartnerInvites();
-
-        const testWidget = document.getElementById('test-widget');
-        if (testWidget) {
-            testWidget.style.display = 'block';
+        if (highlightedStart && highlightedEnd) {
+            if (cellTime >= highlightedStart.getTime() && cellTime <= highlightedEnd.getTime()) {
+                dayCell.classList.add('highlighted');
+            }
+            if (cellTime === highlightedStart.getTime()) {
+                dayCell.classList.add('range-start');
+            }
+            if (cellTime === highlightedEnd.getTime()) {
+                dayCell.classList.add('range-end');
+            }
         }
 
-        // Опционально: здесь можно сделать fetch('/auth/me') и подставить реальное имя
-        // Загружаем данные дашборда, чтобы узнать, есть ли беременность
-        fetch('/api/dashboard', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        })
-        .then(res => res.json())
-        .then(data => {
-            const role = data.user.role;
-            const hasPregnancy = data.active_pregnancy && data.active_pregnancy.last_menstruation_date;
+        daysContainer.appendChild(dayCell);
+    }
 
-            // 🔹 1. Применяем класс роли к body для CSS
-            document.body.classList.remove('is-patient', 'is-partner');
-            document.body.classList.add(`is-${role}`);
-
-            if (setupCard) {
-                if (hasPregnancy) {
-                    setupCard.classList.remove('visible');
-                    setupCard.classList.add('hidden');
-                } else {
-                    setupCard.classList.remove('hidden');
-                    setupCard.classList.add('visible');
-                }
-            }
-
-            if (role === 'partner') {
-                // Скрываем все кнопки добавления/редактирования
-                document.querySelectorAll('#btn-set-pregnancy, .btn-add-test, .edit-btn, [data-action="add"]').forEach(el => el.style.display = 'none');
-
-                // Показываем профиль партнёра, скрываем статистику пациента
-                const partnerBlock = document.getElementById('partner-profile');
-                const patientStats = document.getElementById('profile-stats');
-                const pregSetupCard = document.getElementById('preg-setup-card');
-
-                if (partnerBlock) {
-                    document.getElementById('partner-name').textContent = data.user.full_name;
-                    document.getElementById('following-name').textContent = data.followed_patient_name || 'Не назначен';
-                    partnerBlock.style.display = 'block';
-                }
-                if (patientStats) patientStats.style.display = 'none';
-                if (pregSetupCard) pregSetupCard.style.display = 'none';
-
-                // Обновляем календарь данными беременности пациентки
-                if (hasPregnancy) {
-                    updateCalendarFromDB(data.active_pregnancy.last_menstruation_date, data.active_pregnancy.due_date);
-                }
-                return; // Дальше код для пациента не выполняется
-            }
-
-            // Обновляем статистику дней (если у вас уже есть логика вывода срока)
-            if (hasPregnancy && document.getElementById('preg-days')) {
-                const lmp = new Date(data.active_pregnancy.last_menstruation_date);
-                const days = Math.floor((new Date() - lmp) / (1000 * 60 * 60 * 24));
-                const weeks = Math.floor(days / 7);
-                document.getElementById('preg-days').textContent = `${days} (${weeks})`;
-                document.querySelector('#preg-stat-container .label').textContent = 'Дней (недель)';
-            }
-
-            if (hasPregnancy) {
-                updateCalendarFromDB(
-                    data.active_pregnancy.last_menstruation_date,
-                    data.active_pregnancy.due_date
-                );
-            }
-        })
-        .catch(err => console.warn('Не удалось загрузить профиль:', err));
-
-        // Обработчик кнопки сохранения
-        if (setBtn && !setBtn.dataset.initialized) {
-            setBtn.dataset.initialized = 'true';
-            setBtn.addEventListener('click', async () => {
-                const selectedDate = dateInput.value;
-                if (!selectedDate) {
-                    alert('Пожалуйста, выберите дату');
-                    return;
-                }
-
-                setBtn.disabled = true;
-                setBtn.textContent = 'Сохранение...';
-
-                try {
-                    const res = await fetch('/api/pregnancies', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ last_menstruation_date: selectedDate })
-                    });
-
-                    if (res.ok) {
-                        setupCard.classList.remove('visible');
-                        setupCard.classList.add('hidden');
-                        alert('✅ Дата успешно установлена! Срок пересчитан.');
-                        // Перезагружаем дашборд для обновления статистики
-                        checkAuthState();
-                    } else {
-                        const errData = await res.json();
-                        alert(errData.detail || 'Ошибка сохранения');
-                    }
-                } catch (e) {
-                    console.error(e);
-                    alert('Ошибка соединения');
-                } finally {
-                    setBtn.disabled = false;
-                    setBtn.textContent = 'Установить дату беременности';
-                }
-            });
-        }
+    const totalCells = startWeekday + lastDay.getDate();
+    const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let day = 1; day <= remainingCells; day += 1) {
+        const dayCell = document.createElement('span');
+        dayCell.classList.add('other-month');
+        dayCell.textContent = day;
+        daysContainer.appendChild(dayCell);
     }
 }
-// ===========================
-// КЛИК ПО ДНЮ КАЛЕНДАРЯ
-// ===========================
-document.getElementById('calendar-days').addEventListener('click', (e) => {
-    if (e.target.tagName !== 'SPAN') return;
 
-    const day = parseInt(e.target.textContent);
-    if (!day || e.target.classList.contains('other-month')) return;
+function changeMonth(offset) {
+    state.displayMonth += offset;
 
-    // Показываем панель результатов
-    showDayResults(displayYear, displayMonth, day);
-});
-
-function showDayResults(year, month, day) {
-    const panel = document.getElementById('day-results-panel');
-    const dateEl = document.getElementById('results-date');
-    const emptyEl = document.getElementById('results-empty');
-    const contentEl = document.getElementById('results-content');
-
-    // Форматируем дату для заголовка
-    const date = new Date(year, month, day);
-    const options = { day: 'numeric', month: 'long', year: 'numeric' };
-    dateEl.textContent = `📅 ${date.toLocaleDateString('ru-RU', options)}`;
-
-    // 🔹 Здесь можно загрузить реальные данные с бэкенда:
-    // fetch(`/api/results?date=${year}-${month+1}-${day}`)...
-
-    // Для демо — генерируем тестовые данные
-    const mockResults = getMockTestResults(year, month, day);
-
-    if (mockResults.length === 0) {
-        emptyEl.style.display = 'block';
-        contentEl.style.display = 'none';
-    } else {
-        emptyEl.style.display = 'none';
-        contentEl.style.display = 'block';
-        contentEl.innerHTML = mockResults.map(renderTestCard).join('');
+    if (state.displayMonth < 0) {
+        state.displayMonth = 11;
+        state.displayYear -= 1;
+    } else if (state.displayMonth > 11) {
+        state.displayMonth = 0;
+        state.displayYear += 1;
     }
 
-    // Показываем панель с анимацией
-    panel.classList.add('visible');
-
-    // Плавный скролл к панели (если не видно)
-    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    renderCalendar();
 }
 
 function closeResultsPanel() {
-    const panel = document.getElementById('day-results-panel');
-    panel.classList.remove('visible');
+    document.getElementById('day-results-panel')?.classList.remove('visible');
 }
 
-// 🔹 Вспомогательные функции для демо-данных
-function getMockTestResults(year, month, day) {
-    // В реальном проекте здесь будет fetch к вашему API
-    // Для примера возвращаем данные только для "сегодняшнего" дня
-    const today = new Date();
-    if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
-        return [
-            { name: 'ХГЧ', value: 1250, unit: 'мЕд/мл', status: 'normal', note: '5-6 недель' },
-            { name: 'Прогестерон', value: 28.4, unit: 'нг/мл', status: 'normal', note: 'в пределах нормы' },
-            { name: 'ТТГ', value: 3.2, unit: 'мЕд/л', status: 'warning', note: 'контроль через 2 недели' }
-        ];
-    }
-    // Для других дней — пусто (или можно сгенерировать случайные)
-    return [];
-}
-
-function renderTestCard(test) {
+function renderHistoryCard(item) {
+    const category = categoryLabels[item.category] || 'Ответ';
     return `
         <div class="test-result-card">
             <div class="test-info">
-                <h4>${test.name}</h4>
-                <p>${test.note || ''}</p>
+                <h4>${escapeHtml(item.question)}</h4>
+                <p>${escapeHtml(item.answer || 'Без ответа')}</p>
             </div>
             <div class="test-value">
-                <span class="value">${test.value}</span>
-                <span class="unit">${test.unit}</span>
-                ${test.status ? `<span class="status ${test.status}">${getStatusText(test.status)}</span>` : ''}
+                <span class="status normal">${escapeHtml(category)}</span>
             </div>
         </div>
     `;
 }
 
-function getStatusText(status) {
-    const map = { normal: 'Норма', warning: 'Контроль', critical: 'Внимание' };
-    return map[status] || '';
+async function showDayResults(year, month, day) {
+    const panel = document.getElementById('day-results-panel');
+    const dateEl = document.getElementById('results-date');
+    const emptyEl = document.getElementById('results-empty');
+    const contentEl = document.getElementById('results-content');
+
+    if (!panel || !dateEl || !emptyEl || !contentEl) {
+        return;
+    }
+
+    const targetDate = new Date(year, month, day);
+    dateEl.textContent = `📅 ${targetDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+    contentEl.innerHTML = '<p>Загрузка результатов...</p>';
+    emptyEl.style.display = 'none';
+    contentEl.style.display = 'block';
+    panel.classList.add('visible');
+
+    if (!getToken()) {
+        contentEl.innerHTML = '<p>Войдите в систему, чтобы видеть ответы по дням.</p>';
+        return;
+    }
+
+    try {
+        const history = await fetchJson(`/api/test/history?date=${formatApiDate(year, month, day)}`, {
+            headers: authHeaders()
+        });
+
+        if (!history.length) {
+            emptyEl.style.display = 'block';
+            contentEl.style.display = 'none';
+        } else {
+            emptyEl.style.display = 'none';
+            contentEl.style.display = 'block';
+            contentEl.innerHTML = history.map(renderHistoryCard).join('');
+        }
+    } catch (error) {
+        contentEl.innerHTML = `<p style="color: #e74c3c;">${escapeHtml(error.message)}</p>`;
+    }
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// ===========================
-// ПРИВЕТСТВИЕ ПО ВРЕМЕНИ СУТОК
-// ===========================
+function initCalendar() {
+    const calendar = document.getElementById('calendar');
+    if (!calendar) {
+        return;
+    }
+
+    setCalendarRange(calendar.dataset.rangeStart, calendar.dataset.rangeEnd);
+    renderCalendar();
+
+    document.getElementById('prev-month')?.addEventListener('click', () => changeMonth(-1));
+    document.getElementById('next-month')?.addEventListener('click', () => changeMonth(1));
+
+    document.getElementById('calendar-days')?.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || target.tagName !== 'SPAN') {
+            return;
+        }
+
+        const day = Number.parseInt(target.textContent || '', 10);
+        if (!day || target.classList.contains('other-month')) {
+            return;
+        }
+
+        showDayResults(state.displayYear, state.displayMonth, day);
+    });
+}
+
 function updateGreeting() {
-    const hour = new Date().getHours();
     const heading = document.getElementById('greeting-text');
-    const sub = document.getElementById('greeting-sub');
+    const subheading = document.getElementById('greeting-sub');
+    const greetingSection = document.getElementById('greeting-section');
 
-    const username = document.getElementById('greeting-section')?.dataset.username || 'Гость';
+    if (!heading || !subheading || !greetingSection) {
+        return;
+    }
 
-    let greetingText = '';
+    const hour = new Date().getHours();
+    const username = greetingSection.dataset.username || 'Гость';
 
     if (hour >= 5 && hour < 12) {
-        greetingText = `Доброе утро, ${username}!`;
-        sub.textContent = 'Начните день с продуктивностью 🌅';
-    } else if (hour >= 12 && hour < 18) {
-        greetingText = `Добрый день, ${username}!`;
-        sub.textContent = 'Продолжайте в том же духе ☀️';
-    } else if (hour >= 18 && hour < 23) {
-        greetingText = `Добрый вечер, ${username}!`;
-        sub.textContent = 'Время подвести итоги дня 🌆';
-    } else {
-        greetingText = `Доброй ночи, ${username}!`;
-        sub.textContent = 'Пора отдохнуть 🌙';
+        heading.textContent = `Доброе утро, ${username}!`;
+        subheading.textContent = 'Пусть день будет спокойным и лёгким.';
+        return;
     }
 
-    heading.textContent = greetingText;
-}
-
-updateGreeting();
-
-// ===========================
-// ФУНКЦИЯ ОБНОВЛЕНИЯ КАЛЕНДАРЯ
-// ===========================
-function updateCalendarFromDB(startDateStr, endDateStr) {
-    const cal = document.getElementById('calendar');
-    if (!cal) return;
-
-    // Обновляем data-атрибуты для совместимости
-    cal.dataset.rangeStart = startDateStr;
-    cal.dataset.rangeEnd = endDateStr;
-
-    // Парсим даты
-    const rStart = new Date(startDateStr + 'T00:00:00');
-    const rEnd = new Date(endDateStr + 'T00:00:00');
-
-    // Перерисовываем календарь с новым диапазоном
-    renderCalendar(rStart, rEnd);
-}
-
-// ===========================
-// КАЛЕНДАРЬ
-// ===========================
-const monthNames = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-];
-
-let currentDate = new Date();
-let displayYear = currentDate.getFullYear();
-let displayMonth = currentDate.getMonth();
-
-function renderCalendar(rangeStart = null, rangeEnd = null) {
-    const monthYearEl = document.getElementById('month-year');
-    const daysContainer = document.getElementById('calendar-days');
-
-    monthYearEl.textContent = `${monthNames[displayMonth]} ${displayYear}`;
-    daysContainer.innerHTML = '';
-
-    const firstDay = new Date(displayYear, displayMonth, 1);
-    const lastDay = new Date(displayYear, displayMonth + 1, 0);
-
-    let startWeekday = firstDay.getDay();
-    startWeekday = startWeekday === 0 ? 6 : startWeekday - 1;
-
-    const today = new Date();
-
-    // 🔹 Нормализуем даты диапазона (убираем время, оставляем только день)
-    const hStart = rangeStart ? new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()) : null;
-    const hEnd   = rangeEnd   ? new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate())   : null;
-
-    // 1️⃣ Дни предыдущего месяца
-    const prevMonthLast = new Date(displayYear, displayMonth, 0).getDate();
-    for (let i = startWeekday - 1; i >= 0; i--) {
-        const span = document.createElement('span');
-        span.classList.add('other-month');
-        span.textContent = prevMonthLast - i;
-        daysContainer.appendChild(span);
+    if (hour >= 12 && hour < 18) {
+        heading.textContent = `Добрый день, ${username}!`;
+        subheading.textContent = 'Проверьте самочувствие и важные события на сегодня.';
+        return;
     }
 
-    // 2️⃣ Дни текущего месяца
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-        const span = document.createElement('span');
-        span.textContent = d;
-        const currentDate = new Date(displayYear, displayMonth, d);
+    if (hour >= 18 && hour < 23) {
+        heading.textContent = `Добрый вечер, ${username}!`;
+        subheading.textContent = 'Самое время подвести итоги дня.';
+        return;
+    }
 
-        // Сегодняшний день
-        if (d === today.getDate() && displayMonth === today.getMonth() && displayYear === today.getFullYear()) {
-            span.classList.add('today');
+    heading.textContent = `Доброй ночи, ${username}!`;
+    subheading.textContent = 'Отдых тоже важная часть заботы о себе.';
+}
+
+function updateProfileSummary(data) {
+    const greetingSection = document.getElementById('greeting-section');
+    const profileCard = document.getElementById('profile-content');
+    const profileName = profileCard?.querySelector('h2');
+    const profileEmail = profileCard?.querySelector('.email');
+    const pregDays = document.getElementById('preg-days');
+    const pregLabel = document.querySelector('#preg-stat-container .label');
+
+    if (greetingSection) {
+        greetingSection.dataset.username = data.user.full_name || 'Гость';
+    }
+    if (profileName) {
+        profileName.textContent = data.user.full_name || 'Гость';
+    }
+    if (profileEmail) {
+        profileEmail.textContent = data.user.email || '';
+    }
+
+    if (pregDays && pregLabel) {
+        if (data.active_pregnancy?.current_week) {
+            pregDays.textContent = `${data.active_pregnancy.current_week} неделя`;
+            pregLabel.textContent = 'Текущий срок';
+        } else {
+            pregDays.textContent = '--';
+            pregLabel.textContent = 'Срок беременности';
+        }
+    }
+
+    updateGreeting();
+}
+
+async function checkAuthState() {
+    const rawToken = getToken();
+    const token = (rawToken && rawToken !== 'null' && rawToken !== 'undefined') ? rawToken : null;
+
+    const banner = document.getElementById('auth-banner');
+    const profileContent = document.getElementById('profile-content');
+    const profilePrompt = document.getElementById('profile-auth-prompt');
+    const setupCard = document.getElementById('preg-setup-card');
+    const dateInput = document.getElementById('preg-start-date');
+    const testButton = document.getElementById('test-widget');
+    const partnerBlock = document.getElementById('partner-profile');
+    const partnerInviteSection = document.getElementById('partner-invite-section');
+    const aiWidget = document.getElementById('ai-widget');
+
+    if (dateInput) dateInput.max = new Date().toISOString().split('T')[0];
+
+    if (profileContent) profileContent.style.display = 'none';
+    if (profilePrompt) profilePrompt.style.display = 'none';
+    if (banner) banner.classList.remove('visible');
+    document.body.classList.remove('banner-visible');
+    if (testButton) testButton.style.display = 'none';
+    if (partnerBlock) partnerBlock.classList.add('hidden');
+    if (partnerInviteSection) partnerInviteSection.style.display = 'none';
+    if (aiWidget) aiWidget.classList.add('hidden');
+
+    if (!token) {
+        if (banner) { banner.classList.add('visible'); document.body.classList.add('banner-visible'); }
+        if (profilePrompt) {
+            profilePrompt.style.display = 'block';
+            profilePrompt.innerHTML = `
+                <h2>Профиль доступен после входа</h2>
+                <p>Авторизуйтесь, чтобы увидеть срок беременности, ежедневный тест и историю ответов.</p>
+                <a href="/auth/login" class="btn-profile-login">Войти в систему</a>
+            `;
+        }
+        if (setupCard) setupCard.classList.add('hidden');
+        return;
+    }
+
+    try {
+        const data = await fetchJson('/api/dashboard', { headers: authHeaders() });
+
+        if (aiWidget) aiWidget.classList.remove('hidden');
+
+        if (profilePrompt) profilePrompt.style.display = 'none';
+        if (profileContent) profileContent.style.display = 'block';
+
+        document.body.classList.remove('is-patient', 'is-partner', 'is-doctor');
+        document.body.classList.add(`is-${data.user.role}`);
+        updateProfileSummary(data);
+
+        const hasPregnancy = Boolean(data.active_pregnancy?.last_menstruation_date);
+        if (hasPregnancy) {
+            updateCalendarFromDB(data.active_pregnancy.last_menstruation_date, data.active_pregnancy.due_date);
+        } else {
+            updateCalendarFromDB('', '');
         }
 
-        // 🔹 Проверка попадания в выделенный диапазон
-        if (hStart && hEnd) {
-            const time = currentDate.getTime();
-            if (time >= hStart.getTime() && time <= hEnd.getTime()) {
-                span.classList.add('highlighted');
-                if (time === hStart.getTime()) span.classList.add('range-start');
-                if (time === hEnd.getTime())   span.classList.add('range-end');
-            }
+        if (data.user.role === 'partner') {
+            profileContent?.classList.add('hidden');
+            partnerBlock?.classList.remove('hidden');
+            if (document.getElementById('partner-name')) document.getElementById('partner-name').textContent = data.user.full_name || 'Партнёр';
+            if (document.getElementById('following-name')) document.getElementById('following-name').textContent = data.followed_patient_name || 'Не назначен';
+            if (setupCard) setupCard.classList.add('hidden');
+            if (testButton) testButton.style.display = 'none';
+            if (partnerInviteSection) partnerInviteSection.style.display = 'none';
+            return;
         }
 
-        daysContainer.appendChild(span);
-    }
+        partnerBlock?.classList.add('hidden');
+        profileContent?.classList.remove('hidden');
 
-    // 3️⃣ Дни следующего месяца
-    const totalCells = startWeekday + lastDay.getDate();
-    const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-    for (let i = 1; i <= remaining; i++) {
-        const span = document.createElement('span');
-        span.classList.add('other-month');
-        span.textContent = i;
-        daysContainer.appendChild(span);
+        if (setupCard) {
+            setupCard.classList.toggle('visible', !hasPregnancy);
+            setupCard.classList.toggle('hidden', hasPregnancy);
+        }
+        if (testButton) testButton.style.display = hasPregnancy ? 'inline-flex' : 'none';
+        if (partnerInviteSection) partnerInviteSection.style.display = hasPregnancy ? 'block' : 'none';
+        if (data.user.role === 'patient' && hasPregnancy) await loadPartnerInvites();
+
+    } catch (error) {
+        console.warn('Токен невалиден, очищаем localStorage:', error.message);
+        localStorage.removeItem('token');
+        sessionStorage.clear();
+        checkAuthState();
     }
 }
-const cal = document.getElementById('calendar');
-const rStart = cal.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
-const rEnd   = cal.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
 
-renderCalendar(rStart, rEnd);
-
-// Привяжите к кнопкам переключения месяцев:
-document.getElementById('prev-month').addEventListener('click', () => {
-    displayMonth--;
-    if (displayMonth < 0) { displayMonth = 11; displayYear--; }
-    renderCalendar(rStart, rEnd);
-});
-
-document.getElementById('next-month').addEventListener('click', () => {
-    displayMonth++;
-    if (displayMonth > 11) { displayMonth = 0; displayYear++; }
-    renderCalendar(rStart, rEnd);
-});
-
-// ===== МОДАЛЬНОЕ ОКНО ТЕСТА =====
 function openTestModal() {
     const modal = document.getElementById('test-modal');
+    if (!modal) {
+        return;
+    }
+
     modal.classList.remove('hidden');
     loadTestQuestions();
 }
 
 function closeTestModal() {
-    document.getElementById('test-modal').classList.add('hidden');
-    document.getElementById('test-form').reset();
+    document.getElementById('test-modal')?.classList.add('hidden');
+    document.getElementById('test-form')?.reset();
 }
 
 async function loadTestQuestions() {
     const container = document.getElementById('test-questions-container');
+    if (!container) {
+        return;
+    }
+
     container.innerHTML = '<p>Загрузка вопросов...</p>';
 
-    const token = localStorage.getItem('token');
     try {
-        const res = await fetch('/api/test/questions', {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const questions = await fetchJson('/api/test/questions', {
+            headers: authHeaders()
         });
-        const questions = await res.json();
 
-        container.innerHTML = questions.map(q => {
-            if (q.type === 'text') {
+        container.innerHTML = questions.map((question) => {
+            if (question.type === 'text') {
                 return `
                     <div class="test-question">
-                        <label>${q.text}${q.required ? ' *' : ''}</label>
-                        <textarea name="q_${q.id}" rows="3" placeholder="Ваш ответ..." ${q.required ? 'required' : ''}></textarea>
-                    </div>
-                `;
-            } else {
-                const options = q.options.map((opt, i) => `
-                    <label><input type="radio" name="q_${q.id}" value="${opt}" ${q.required ? 'required' : ''}> ${opt}</label>
-                `).join('');
-                return `
-                    <div class="test-question">
-                        <label>${q.text}${q.required ? ' *' : ''}</label>
-                        <div class="test-options">${options}</div>
+                        <label>${escapeHtml(question.text)}${question.required ? ' *' : ''}</label>
+                        <textarea
+                            name="q_${question.id}"
+                            rows="3"
+                            placeholder="Ваш ответ..."
+                            ${question.required ? 'required' : ''}
+                        ></textarea>
                     </div>
                 `;
             }
-        }).join('');
 
-    } catch (e) {
-        container.innerHTML = '<p style="color: #e74c3c;">Ошибка загрузки вопросов</p>';
+            const options = (question.options || []).map((option) => `
+                <label>
+                    <input type="radio" name="q_${question.id}" value="${escapeHtml(option)}" ${question.required ? 'required' : ''}>
+                    ${escapeHtml(option)}
+                </label>
+            `).join('');
+
+            return `
+                <div class="test-question">
+                    <label>${escapeHtml(question.text)}${question.required ? ' *' : ''}</label>
+                    <div class="test-options">${options}</div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        container.innerHTML = `<p style="color: #e74c3c;">${escapeHtml(error.message)}</p>`;
     }
 }
 
-// Обработка отправки формы
-document.getElementById('test-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+function initSymptomChecker() {
+    const toggle = document.getElementById('symptom-toggle');
+    const panel = document.getElementById('symptom-panel');
+    const input = document.getElementById('symptom-input');
+    const btn = document.getElementById('symptom-btn');
+    const output = document.getElementById('symptom-output');
 
-    const token = localStorage.getItem('token');
-    const answers = [];
+    if (!toggle || !panel || !input || !btn || !output) return;
 
-    // Собираем ответы
-    document.querySelectorAll('#test-questions-container .test-question').forEach(div => {
-        const questionId = div.querySelector('[name]')?.name?.replace('q_', '');
-        const answer = div.querySelector('input:checked')?.value ||
-                      div.querySelector('textarea')?.value;
+    // Раскрытие/скрытие панели
+    toggle.addEventListener('click', () => {
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) input.focus();
+    });
 
-        if (questionId && answer) {
-            answers.push({ question_id: parseInt(questionId), answer });
+    // Отправка на анализ
+    btn.addEventListener('click', async () => {
+        const text = input.value.trim();
+        if (!text) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Анализ...';
+        output.className = 'symptom-output hidden';
+
+        try {
+            const res = await fetchJson('/api/symptom/analyze', {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify({ symptom_text: text })
+            });
+
+            output.className = `symptom-output ${res.classification}`;
+            let html = `<strong>${res.classification === 'critical' ? '🚨' : res.classification === 'concerning' ? '⚠️' : '✅'} Результат анализа:</strong>
+                        <p>${res.recommendation}</p>`;
+            if (res.actions) {
+                html += `<hr style="border:0; border-top:1px solid currentColor; margin:10px 0; opacity:0.3;"><pre>${res.actions}</pre>`;
+            }
+            output.innerHTML = html;
+            output.classList.remove('hidden');
+        } catch (error) {
+            output.className = 'symptom-output concerning';
+            output.innerHTML = `<p>⚠️ ${error.message}</p>`;
+            output.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Анализировать ИИ';
         }
     });
 
-    try {
-        const res = await fetch('/api/test/submit', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ answers })
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') btn.click();
+    });
+}
+
+function initTestForm() {
+    document.getElementById('test-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const answers = [];
+        document.querySelectorAll('#test-questions-container .test-question').forEach((questionBlock) => {
+            const field = questionBlock.querySelector('[name]');
+            const questionId = field?.name?.replace('q_', '');
+            const answer =
+                questionBlock.querySelector('input:checked')?.value ||
+                questionBlock.querySelector('textarea')?.value?.trim();
+
+            if (questionId && answer) {
+                answers.push({ question_id: Number.parseInt(questionId, 10), answer });
+            }
         });
 
-        if (res.ok) {
-            alert('✅ Спасибо! Ваши ответы сохранены.');
-            closeTestModal();
-        } else {
-            alert('Ошибка сохранения');
+        if (!answers.length) {
+            alert('Пожалуйста, заполните хотя бы один ответ.');
+            return;
         }
-    } catch (e) {
-        alert('Ошибка соединения');
-    }
-});
 
-// ===========================
-// ПЛАВАЮЩЕЕ МЕНЮ (DRAG & DROP)
-// ===========================
-const floatingMenu = document.getElementById('floating-menu');
-let isDragging = false;
-let offsetX = 0, offsetY = 0;
+        try {
+            await fetchJson('/api/test/submit', {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify({ answers })
+            });
 
-// Мышь
-floatingMenu.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    floatingMenu.classList.add('dragging');
-    offsetX = e.clientX - floatingMenu.getBoundingClientRect().left;
-    offsetY = e.clientY - floatingMenu.getBoundingClientRect().top;
-});
+            alert('Спасибо! Ваше самочувствие сохранено.');
+            closeTestModal();
 
-document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    let x = e.clientX - offsetX;
-    let y = e.clientY - offsetY;
-
-    // Не даём выйти за пределы экрана
-    x = Math.max(0, Math.min(x, window.innerWidth - floatingMenu.offsetWidth));
-    y = Math.max(0, Math.min(y, window.innerHeight - floatingMenu.offsetHeight));
-
-    floatingMenu.style.left = x + 'px';
-    floatingMenu.style.top = y + 'px';
-    floatingMenu.style.right = 'auto';
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-    const cal = document.getElementById('calendar');
-    if (cal) {
-        const rStart = cal.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
-        const rEnd   = cal.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
-        renderCalendar(rStart, rEnd);
-    }
-
-    const prevBtn = document.getElementById('prev-month');
-    const nextBtn = document.getElementById('next-month');
-
-    // Кнопки переключения месяцев
-    prevBtn?.addEventListener('click', () => {
-        displayMonth--;
-        if (displayMonth < 0) { displayMonth = 11; displayYear--; }
-        // При переключении месяцев нужно снова передать текущий диапазон из БД, если он есть
-        const cal = document.getElementById('calendar');
-        const rStart = cal?.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
-        const rEnd   = cal?.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
-        renderCalendar(rStart, rEnd);
+            const today = new Date();
+            await showDayResults(today.getFullYear(), today.getMonth(), today.getDate());
+        } catch (error) {
+            alert(error.message);
+        }
     });
+}
 
-    nextBtn?.addEventListener('click', () => {
-        displayMonth++;
-        if (displayMonth > 11) { displayMonth = 0; displayYear++; }
-        const cal = document.getElementById('calendar');
-        const rStart = cal?.dataset.rangeStart ? new Date(cal.dataset.rangeStart + 'T00:00:00') : null;
-        const rEnd   = cal?.dataset.rangeEnd   ? new Date(cal.dataset.rangeEnd   + 'T00:00:00') : null;
-        renderCalendar(rStart, rEnd);
-    });
-
-    checkAuthState();
-    updateGreeting();
-});
-
-document.addEventListener('mouseup', () => {
-    isDragging = false;
-    floatingMenu.classList.remove('dragging');
-});
-
-// Тач (мобильные устройства)
-floatingMenu.addEventListener('touchstart', (e) => {
-    const touch = e.touches[0];
-    isDragging = true;
-    floatingMenu.classList.add('dragging');
-    offsetX = touch.clientX - floatingMenu.getBoundingClientRect().left;
-    offsetY = touch.clientY - floatingMenu.getBoundingClientRect().top;
-});
-
-document.addEventListener('touchmove', (e) => {
-    if (!isDragging) return;
-    const touch = e.touches[0];
-    let x = touch.clientX - offsetX;
-    let y = touch.clientY - offsetY;
-
-    x = Math.max(0, Math.min(x, window.innerWidth - floatingMenu.offsetWidth));
-    y = Math.max(0, Math.min(y, window.innerHeight - floatingMenu.offsetHeight));
-
-    floatingMenu.style.left = x + 'px';
-    floatingMenu.style.top = y + 'px';
-    floatingMenu.style.right = 'auto';
-});
-
-document.addEventListener('touchend', () => {
-    isDragging = false;
-    floatingMenu.classList.remove('dragging');
-});
-
-// ===========================
-// ЛОГИКА ПРИГЛАШЕНИЙ ПАРТНЁРА
-// ===========================
-let currentInviteId = null;
-
-function loadPartnerInvites() {
+async function loadPartnerInvites() {
     const section = document.getElementById('partner-invite-section');
-    if (!section) return;
+    if (!section || !getToken()) {
+        return;
+    }
 
-    const token = localStorage.getItem('token');
-    if (!token) { section.style.display = 'none'; return; }
+    try {
+        const invites = await fetchJson('/api/partner-invites', {
+            headers: authHeaders()
+        });
 
-    fetch('/api/partner-invites', {
-        headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => {
-        if (res.status === 403) { section.style.display = 'none'; return; }
-        return res.json();
-    })
-    .then(invites => {
-        if (!invites) return;
         section.style.display = 'block';
-        if (invites.length > 0) showActiveInvite(invites[0]);
-        else {
+        if (invites.length > 0) {
+            showActiveInvite(invites[0]);
+        } else {
             document.getElementById('no-invite-msg').style.display = 'block';
             document.getElementById('active-invite-box').style.display = 'none';
         }
-    })
-    .catch(err => console.warn('Invite load failed:', err));
+    } catch (error) {
+        console.warn('Не удалось загрузить приглашения:', error);
+        section.style.display = 'none';
+    }
 }
 
-function showActiveInvite(inv) {
-    currentInviteId = inv.id;
-    document.getElementById('invite-link-input').value = inv.link;
-    document.getElementById('invite-expire').textContent = `Истекает: ${new Date(inv.expires_at).toLocaleDateString('ru-RU')}`;
+function showActiveInvite(invite) {
+    state.currentInviteId = invite.id;
+    document.getElementById('invite-link-input').value = invite.link;
+    document.getElementById('invite-expire').textContent = `Истекает: ${new Date(invite.expires_at).toLocaleDateString('ru-RU')}`;
     document.getElementById('no-invite-msg').style.display = 'none';
     document.getElementById('active-invite-box').style.display = 'block';
 }
 
-async function generateInvite() {
-    showInviteMsg('Создание ссылки...', '');
-    try {
-        const res = await fetch('/api/partner-invites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-            body: JSON.stringify({})
-        });
-        const data = await res.json();
-        if (res.ok) showActiveInvite(data);
-        else showInviteMsg(data.detail || 'Ошибка', 'error');
-    } catch(e) { showInviteMsg('Ошибка соединения', 'error'); }
-}
+function showInviteMsg(text, type = '') {
+    const element = document.getElementById('invite-msg');
+    if (!element) {
+        return;
+    }
 
-async function regenerateInvite() {
-    if (currentInviteId) await revokeInvite(currentInviteId, true);
-    generateInvite();
-}
+    element.textContent = text;
+    element.className = `invite-msg ${type}`.trim();
 
-async function revokeInvite(id, silent = false) {
-    if (!silent && !confirm('Отозвать приглашение? Ссылка перестанет работать.')) return;
-    try {
-        const res = await fetch(`/api/partner-invites/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        const data = await res.json();
-        if (res.ok) {
-            if (!silent) {
-                document.getElementById('active-invite-box').style.display = 'none';
-                document.getElementById('no-invite-msg').style.display = 'block';
-                showInviteMsg('Приглашение удалено', 'success');
-            }
-        } else showInviteMsg(data.detail || 'Ошибка', 'error');
-    } catch(e) { showInviteMsg('Ошибка соединения', 'error'); }
-}
-
-function copyInviteLink() {
-    const input = document.getElementById('invite-link-input');
-    input.select();
-    navigator.clipboard.writeText(input.value)
-        .then(() => showInviteMsg('✅ Ссылка скопирована!', 'success'))
-        .catch(() => { document.execCommand('copy'); showInviteMsg('Скопировано', 'success'); });
-}
-
-function showInviteMsg(text, type) {
-    const el = document.getElementById('invite-msg');
-    el.textContent = text;
-    el.className = `invite-msg ${type}`;
-    if (type) setTimeout(() => { el.textContent = ''; el.className = 'invite-msg'; }, 3000);
-}
-
-// ===========================
-// ВЫХОД ИЗ АККАУНТА
-// ===========================
-function logout() {
-    if (confirm('Вы действительно хотите выйти из аккаунта?')) {
-        // 1. Удаляем кэш авторизации
-        localStorage.removeItem('token');
-        sessionStorage.clear();
-        // 2. Перенаправляем на страницу входа
-        window.location.href = '/auth/login';
+    if (type) {
+        setTimeout(() => {
+            element.textContent = '';
+            element.className = 'invite-msg';
+        }, 3000);
     }
 }
 
-// Делаем функцию доступной для onclick в HTML
+async function generateInvite() {
+    showInviteMsg('Создание ссылки...');
+
+    try {
+        const invite = await fetchJson('/api/partner-invites', {
+            method: 'POST',
+            headers: authHeaders(true),
+            body: JSON.stringify({})
+        });
+        showActiveInvite(invite);
+        showInviteMsg('Ссылка готова.', 'success');
+    } catch (error) {
+        showInviteMsg(error.message, 'error');
+    }
+}
+
+async function revokeInvite(id, silent = false) {
+    if (!id) {
+        return;
+    }
+    if (!silent && !confirm('Отозвать приглашение? Ссылка перестанет работать.')) {
+        return;
+    }
+
+    try {
+        await fetchJson(`/api/partner-invites/${id}`, {
+            method: 'DELETE',
+            headers: authHeaders()
+        });
+
+        if (!silent) {
+            document.getElementById('active-invite-box').style.display = 'none';
+            document.getElementById('no-invite-msg').style.display = 'block';
+            showInviteMsg('Приглашение удалено.', 'success');
+        }
+    } catch (error) {
+        showInviteMsg(error.message, 'error');
+    }
+}
+
+async function regenerateInvite() {
+    if (state.currentInviteId) {
+        await revokeInvite(state.currentInviteId, true);
+    }
+    await generateInvite();
+}
+
+async function copyInviteLink() {
+    const input = document.getElementById('invite-link-input');
+    if (!input) {
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(input.value);
+        showInviteMsg('Ссылка скопирована.', 'success');
+    } catch (error) {
+        input.select();
+        document.execCommand('copy');
+        showInviteMsg('Ссылка скопирована.', 'success');
+    }
+}
+
+function logout() {
+    if (!confirm('Вы действительно хотите выйти из аккаунта?')) {
+        return;
+    }
+
+    localStorage.removeItem('token');
+    sessionStorage.clear();
+    window.location.href = '/auth/login';
+}
+
+function updateMenuPosition(clientX, clientY, floatingMenu) {
+    let newX = clientX - state.dragOffsetX;
+    let newY = clientY - state.dragOffsetY;
+
+    newX = Math.max(0, Math.min(newX, window.innerWidth - floatingMenu.offsetWidth));
+    newY = Math.max(0, Math.min(newY, window.innerHeight - floatingMenu.offsetHeight));
+
+    floatingMenu.style.left = `${newX}px`;
+    floatingMenu.style.top = `${newY}px`;
+    floatingMenu.style.right = 'auto';
+}
+
+function initFloatingMenu() {
+    const floatingMenu = document.getElementById('floating-menu');
+    const dragHandle = floatingMenu?.querySelector('.drag-handle');
+
+    if (!floatingMenu || !dragHandle) {
+        return;
+    }
+
+    dragHandle.addEventListener('mousedown', (event) => {
+        state.isDraggingMenu = true;
+        state.dragOffsetX = event.clientX - floatingMenu.getBoundingClientRect().left;
+        state.dragOffsetY = event.clientY - floatingMenu.getBoundingClientRect().top;
+        floatingMenu.classList.add('dragging');
+    });
+
+    document.addEventListener('mousemove', (event) => {
+        if (!state.isDraggingMenu) {
+            return;
+        }
+        updateMenuPosition(event.clientX, event.clientY, floatingMenu);
+    });
+
+    document.addEventListener('mouseup', () => {
+        state.isDraggingMenu = false;
+        floatingMenu.classList.remove('dragging');
+    });
+
+    dragHandle.addEventListener('touchstart', (event) => {
+        const touch = event.touches[0];
+        state.isDraggingMenu = true;
+        state.dragOffsetX = touch.clientX - floatingMenu.getBoundingClientRect().left;
+        state.dragOffsetY = touch.clientY - floatingMenu.getBoundingClientRect().top;
+        floatingMenu.classList.add('dragging');
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (event) => {
+        if (!state.isDraggingMenu) {
+            return;
+        }
+        const touch = event.touches[0];
+        updateMenuPosition(touch.clientX, touch.clientY, floatingMenu);
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+        state.isDraggingMenu = false;
+        floatingMenu.classList.remove('dragging');
+    });
+}
+
+function initPregnancySetup() {
+    const dateInput = document.getElementById('preg-start-date');
+    const weekInput = document.getElementById('preg-week');
+    const setButton = document.getElementById('btn-set-pregnancy');
+    const setupCard = document.getElementById('preg-setup-card');
+    if (!dateInput || !setButton || !setupCard) return;
+
+    setButton.addEventListener('click', async () => {
+        const lmp = dateInput.value;
+        const week = weekInput?.value ? parseInt(weekInput.value) : null;
+        if (!lmp && !week) { alert('Выберите дату или укажите срок в неделях.'); return; }
+
+        setButton.disabled = true;
+        setButton.textContent = 'Сохранение...';
+
+        try {
+            const payload = {};
+            if (lmp) payload.last_menstruation_date = lmp;
+            if (week) payload.gestational_week = week;
+
+            const res = await fetchJson('/api/pregnancies', {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify(payload)
+            });
+
+            // Обновляем профиль новым периодом
+            const pregDays = document.getElementById('preg-days');
+            const pregLabel = document.querySelector('#preg-stat-container .label');
+            if (pregDays) pregDays.textContent = `${res.current_week} неделя`;
+            if (pregLabel) pregLabel.textContent = res.period;
+
+            setupCard.classList.remove('visible');
+            setupCard.classList.add('hidden');
+            dateInput.value = '';
+            if (weekInput) weekInput.value = '';
+
+            alert(`✅ Данные сохранены!\n📅 Период: ${res.period}\n🍼 ПДР: ${new Date(res.due_date).toLocaleDateString('ru-RU')}`);
+            await checkAuthState();
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setButton.disabled = false;
+            setButton.textContent = 'Установить';
+        }
+    });
+}
+function initApp() {
+    initMenuNavigation();
+    initCalendar();
+    initTestForm();
+    initFloatingMenu();
+    initPregnancySetup();
+    initSymptomChecker();
+    updateGreeting();
+    checkAuthState();
+}
+
+window.closeBanner = closeBanner;
+window.closeResultsPanel = closeResultsPanel;
+window.openTestModal = openTestModal;
+window.closeTestModal = closeTestModal;
+window.generateInvite = generateInvite;
+window.regenerateInvite = regenerateInvite;
+window.revokeInvite = revokeInvite;
+window.copyInviteLink = copyInviteLink;
 window.logout = logout;
+
+initApp();
