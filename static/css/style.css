@@ -125,6 +125,32 @@ body {
     cursor: pointer;
     transition: all 0.2s;
     font-size: 0.95rem;
+    position: relative;
+}
+
+.calendar-days span.has-events::after {
+    content: attr(data-event-count);
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    color: #f9d423;
+    font-weight: 700;
+}
+
+.calendar-days span .event-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4caf50;
+}
+
+.calendar-days span .event-dot.overdue {
+    background: #ffeb3b;
 }
 
 .calendar-days span:hover {
@@ -256,6 +282,11 @@ footer a {
     transition: all 0.25s;
     text-align: left;
     white-space: nowrap;
+    margin-bottom: 4px;
+}
+
+.floating-menu button:last-child {
+    margin-bottom: 0;
 }
 
 .floating-menu button:hover {
@@ -302,4 +333,249 @@ footer a {
         padding: 10px 16px;
         font-size: 0.9rem;
     }
+}
+
+/* ===== МЕНЮ "ЧТО СДЕЛАТЬ НА ЭТОЙ НЕДЕЛЕ?" - УДАЛЕНО ===== */
+
+/* ===== МОДАЛЬНОЕ ОКНО ===== */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-window {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 30px;
+    width: 90%;
+    max-width: 450px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.modal-window h3 {
+    color: #f9d423;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.4rem;
+}
+
+#event-form label {
+    display: block;
+    color: #ccc;
+    margin-bottom: 6px;
+    margin-top: 14px;
+    font-size: 0.9rem;
+}
+
+#event-form select,
+#event-form input[type="text"],
+#event-form input[type="date"],
+#event-form input[type="time"],
+#event-form textarea {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1rem;
+}
+
+#event-form select:focus,
+#event-form input:focus,
+#event-form textarea:focus {
+    outline: none;
+    border-color: #f9d423;
+}
+
+#event-form textarea {
+    resize: vertical;
+    font-family: inherit;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.save-btn,
+.cancel-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.save-btn {
+    background: linear-gradient(135deg, #f9d423, #ff4e50);
+    color: #000;
+}
+
+.save-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(249, 212, 35, 0.3);
+}
+
+.cancel-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ccc;
+}
+
+.cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+/* Скроллбар для списка событий */
+.week-events-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.week-events-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.week-events-list::-webkit-scrollbar-thumb {
+    background: rgba(249, 212, 35, 0.5);
+    border-radius: 3px;
+}
+
+.week-events-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(249, 212, 35, 0.7);
+}
+
+/* ===== МОДАЛЬНОЕ ОКНО ПРОСМОТРА СОБЫТИЙ ДНЯ ===== */
+.day-events-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.day-events-modal-overlay.active {
+    display: flex;
+}
+
+.day-events-modal-window {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 30px;
+    width: 90%;
+    max-width: 450px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.day-events-modal-window h3 {
+    color: #f9d423;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.4rem;
+}
+
+.day-events-list {
+    list-style: none;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.day-events-list li {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    border-left: 3px solid #ff4e50;
+}
+
+.day-events-list .event-type {
+    font-weight: 600;
+    color: #f9d423;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.day-events-list .event-date {
+    color: #ccc;
+    font-size: 0.85rem;
+}
+
+.day-events-list .event-time {
+    color: #fff;
+    font-weight: 500;
+}
+
+.day-events-list .event-notes {
+    color: #aaa;
+    font-size: 0.8rem;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.day-events-list .delete-event-btn {
+    background: rgba(255, 78, 80, 0.2);
+    border: none;
+    border-radius: 4px;
+    color: #ff4e50;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+}
+
+.day-events-list .delete-event-btn:hover {
+    background: rgba(255, 78, 80, 0.4);
+}
+
+.no-events-message {
+    text-align: center;
+    color: #888;
+    padding: 20px;
+}
+
+.close-day-events-btn {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 8px;
+    color: #ccc;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.close-day-events-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
 }
