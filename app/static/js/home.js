@@ -24,8 +24,7 @@ const state = {
     currentInviteId: null,
     isDraggingMenu: false,
     dragOffsetX: 0,
-    dragOffsetY: 0,
-    testHistoryByDate: {}
+    dragOffsetY: 0
 };
 
 function getToken() {
@@ -132,13 +131,6 @@ function updateCalendarFromDB(startDateStr, endDateStr) {
     renderCalendar();
 }
 
-
-function hasHistoryForDate(year, month, day) {
-    const key = formatApiDate(year, month, day);
-    const records = state.testHistoryByDate[key];
-    return Array.isArray(records) && records.length > 0;
-}
-
 function renderCalendar() {
     const monthYearEl = document.getElementById('month-year');
     const daysContainer = document.getElementById('calendar-days');
@@ -173,15 +165,8 @@ function renderCalendar() {
         : null;
 
     for (let day = 1; day <= lastDay.getDate(); day += 1) {
-        const dayCell = document.createElement('button');
-        dayCell.type = 'button';
-        dayCell.classList.add('calendar-day');
-        dayCell.dataset.day = String(day);
-
-        const dayNumber = document.createElement('span');
-        dayNumber.classList.add('calendar-day-number');
-        dayNumber.textContent = String(day);
-        dayCell.appendChild(dayNumber);
+        const dayCell = document.createElement('span');
+        dayCell.textContent = day;
 
         const cellDate = new Date(state.displayYear, state.displayMonth, day);
         const cellTime = cellDate.getTime();
@@ -204,13 +189,6 @@ function renderCalendar() {
             if (cellTime === highlightedEnd.getTime()) {
                 dayCell.classList.add('range-end');
             }
-        }
-
-        if (hasHistoryForDate(state.displayYear, state.displayMonth, day)) {
-            const dot = document.createElement('span');
-            dot.classList.add('calendar-day-dot');
-            dayCell.appendChild(dot);
-            dayCell.classList.add('has-events');
         }
 
         daysContainer.appendChild(dayCell);
@@ -286,8 +264,6 @@ async function showDayResults(year, month, day) {
             headers: authHeaders()
         });
 
-        state.testHistoryByDate[formatApiDate(year, month, day)] = history;
-
         if (!history.length) {
             emptyEl.style.display = 'block';
             contentEl.style.display = 'none';
@@ -300,7 +276,6 @@ async function showDayResults(year, month, day) {
         contentEl.innerHTML = `<p style="color: #e74c3c;">${escapeHtml(error.message)}</p>`;
     }
 
-    renderCalendar();
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -318,17 +293,12 @@ function initCalendar() {
 
     document.getElementById('calendar-days')?.addEventListener('click', (event) => {
         const target = event.target;
-        if (!(target instanceof HTMLElement)) {
+        if (!(target instanceof HTMLElement) || target.tagName !== 'SPAN') {
             return;
         }
 
-        const dayButton = target.closest('.calendar-day');
-        if (!(dayButton instanceof HTMLElement) || dayButton.classList.contains('other-month')) {
-            return;
-        }
-
-        const day = Number.parseInt(dayButton.dataset.day || '', 10);
-        if (!day) {
+        const day = Number.parseInt(target.textContent || '', 10);
+        if (!day || target.classList.contains('other-month')) {
             return;
         }
 
