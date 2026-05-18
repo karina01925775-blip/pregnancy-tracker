@@ -12,7 +12,7 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=6)
     full_name: str
     phone: Optional[str] = None
-    age: int = Field(..., ge=14, le=99)
+    age: Optional[int] = Field(None, ge=14, le=99)
     role: UserRole = UserRole.PATIENT
     disclaimer_accepted: bool = False
 
@@ -44,6 +44,8 @@ class EventCreate(BaseModel):
     description: Optional[str] = None
     event_date: date
     week_of_pregnancy: int
+    time: Optional[str] = None
+    event_type: str = "other"
 
 class EventResponse(BaseModel):
     id: int
@@ -51,6 +53,8 @@ class EventResponse(BaseModel):
     description: Optional[str]
     event_date: date
     week_of_pregnancy: int
+    time: Optional[str]
+    event_type: str
     status: str
     class Config:
         from_attributes = True

@@ -131,13 +131,10 @@ function updateCalendarFromDB(startDateStr, endDateStr) {
     renderCalendar();
 }
 
-function renderCalendar() {
+async function renderCalendar() {
     const monthYearEl = document.getElementById('month-year');
     const daysContainer = document.getElementById('calendar-days');
-
-    if (!monthYearEl || !daysContainer) {
-        return;
-    }
+    if (!monthYearEl || !daysContainer) return;
 
     monthYearEl.textContent = `${monthNames[state.displayMonth]} ${state.displayYear}`;
     daysContainer.innerHTML = '';
@@ -157,13 +154,28 @@ function renderCalendar() {
         daysContainer.appendChild(dayCell);
     }
 
-    const highlightedStart = state.rangeStart
-        ? new Date(state.rangeStart.getFullYear(), state.rangeStart.getMonth(), state.rangeStart.getDate())
-        : null;
-    const highlightedEnd = state.rangeEnd
-        ? new Date(state.rangeEnd.getFullYear(), state.rangeEnd.getMonth(), state.rangeEnd.getDate())
-        : null;
+    // 🔹 1. ЗАГРУЖАЕМ СОБЫТИЯ ЗАРАНЕЕ (до отрисовки дней)
+    const eventsMap = {};
+    if (getToken()) {
+        try {
+            const dash = await fetchJson('/api/dashboard', { headers: authHeaders() });
+            const pregId = dash.active_pregnancy?.id;
+            if (pregId) {
+                const events = await fetchJson(`/api/pregnancies/${pregId}/events`, { headers: authHeaders() });
+                events.forEach(e => {
+                    const [y, m, d] = e.event_date.split('-').map(Number);
+                    const key = `${y}-${m-1}-${d}`; // месяц в JS: 0-11
+                    if (!eventsMap[key]) eventsMap[key] = [];
+                    eventsMap[key].push(e);
+                });
+            }
+        } catch (e) { console.warn('Не удалось загрузить события для маркеров', e); }
+    }
 
+    const highlightedStart = state.rangeStart ? new Date(state.rangeStart.getFullYear(), state.rangeStart.getMonth(), state.rangeStart.getDate()) : null;
+    const highlightedEnd = state.rangeEnd ? new Date(state.rangeEnd.getFullYear(), state.rangeEnd.getMonth(), state.rangeEnd.getDate()) : null;
+
+    // 🔹 2. ОТРИСОВКА ДНЕЙ + МАРКЕРОВ СИНХРОННО
     for (let day = 1; day <= lastDay.getDate(); day += 1) {
         const dayCell = document.createElement('span');
         dayCell.textContent = day;
@@ -171,27 +183,30 @@ function renderCalendar() {
         const cellDate = new Date(state.displayYear, state.displayMonth, day);
         const cellTime = cellDate.getTime();
 
-        if (
-            day === today.getDate() &&
-            state.displayMonth === today.getMonth() &&
-            state.displayYear === today.getFullYear()
-        ) {
+        if (day === today.getDate() && state.displayMonth === today.getMonth() && state.displayYear === today.getFullYear()) {
             dayCell.classList.add('today');
         }
 
         if (highlightedStart && highlightedEnd) {
-            if (cellTime >= highlightedStart.getTime() && cellTime <= highlightedEnd.getTime()) {
-                dayCell.classList.add('highlighted');
-            }
-            if (cellTime === highlightedStart.getTime()) {
-                dayCell.classList.add('range-start');
-            }
-            if (cellTime === highlightedEnd.getTime()) {
-                dayCell.classList.add('range-end');
-            }
+            if (cellTime >= highlightedStart.getTime() && cellTime <= highlightedEnd.getTime()) dayCell.classList.add('highlighted');
+            if (cellTime === highlightedStart.getTime()) dayCell.classList.add('range-start');
+            if (cellTime === highlightedEnd.getTime()) dayCell.classList.add('range-end');
         }
 
         daysContainer.appendChild(dayCell);
+
+        // 🔹 ДОБАВЛЯЕМ ТОЧКУ-МАРКЕР
+        const key = `${state.displayYear}-${state.displayMonth}-${day}`;
+        if (eventsMap[key] && eventsMap[key].length > 0) {
+            dayCell.classList.add('has-events');
+            const todayZero = new Date(); todayZero.setHours(0, 0, 0, 0);
+            const hasOverdue = eventsMap[key].some(ev => new Date(ev.event_date) < todayZero);
+
+            const marker = document.createElement('span');
+            marker.className = `event-marker ${hasOverdue ? 'overdue' : ''} ${eventsMap[key].length > 1 ? 'multiple' : ''}`;
+            marker.title = `${eventsMap[key].length} событие(й): ${eventsMap[key].map(e => e.title).join(', ')}`;
+            dayCell.appendChild(marker);
+        }
     }
 
     const totalCells = startWeekday + lastDay.getDate();
@@ -279,6 +294,100 @@ async function showDayResults(year, month, day) {
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+async function loadDayEvents(year, month, day) {
+    const panel = document.getElementById('day-events-panel');
+    const dateEl = document.getElementById('events-date');
+    const emptyEl = document.getElementById('events-empty');
+    const contentEl = document.getElementById('events-content');
+
+    if (!panel || !dateEl || !emptyEl || !contentEl) return;
+
+    const targetDate = new Date(year, month, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    dateEl.textContent = `📅 ${targetDate.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    contentEl.innerHTML = '<p>Загрузка...</p>';
+    emptyEl.classList.add('hidden');
+    contentEl.style.display = 'block';
+    panel.classList.add('visible');
+
+    if (!getToken()) {
+        contentEl.innerHTML = '<p>Войдите, чтобы видеть события</p>';
+        return;
+    }
+
+    try {
+        const dashboard = await fetchJson('/api/dashboard', { headers: authHeaders() });
+        const pregnancyId = dashboard.active_pregnancy?.id;
+
+        if (!pregnancyId) {
+            contentEl.innerHTML = '<p>Укажите срок беременности в профиле</p>';
+            return;
+        }
+
+        const events = await fetchJson(`/api/pregnancies/${pregnancyId}/events`, {
+            headers: authHeaders()
+        });
+
+        // Фильтруем события на выбранный день
+        const dayEvents = events.filter(e => {
+            const eventDate = new Date(e.event_date);
+            return eventDate.getDate() === day &&
+                   eventDate.getMonth() === month &&
+                   eventDate.getFullYear() === year;
+        }).sort((a, b) => {
+            // Сначала по времени, потом по названию
+            if (a.time && b.time) return a.time.localeCompare(b.time);
+            if (a.time) return -1;
+            if (b.time) return 1;
+            return a.title.localeCompare(b.title);
+        });
+
+        if (dayEvents.length === 0) {
+            emptyEl.classList.remove('hidden');
+            contentEl.style.display = 'none';
+        } else {
+            emptyEl.classList.add('hidden');
+            contentEl.style.display = 'block';
+
+            contentEl.innerHTML = dayEvents.map(event => {
+                const eventDate = new Date(event.event_date);
+                const isOverdue = eventDate < today && (!event.time || event.time < new Date().toTimeString().slice(0,5));
+                const statusClass = isOverdue ? 'overdue' : 'upcoming';
+                const statusText = isOverdue ? 'Просрочено' : 'Предстоит';
+
+                const typeIcons = { visit: '🩺', test: '🧪', ultrasound: '🔍', other: '📌' };
+                const typeIcon = typeIcons[event.event_type] || '📌';
+
+                const timeStr = event.time ? `<span class="event-time">⏰ ${event.time}</span>` : '';
+                const descStr = event.description ? `<p class="event-desc">${escapeHtml(event.description)}</p>` : '';
+
+                return `
+                    <div class="event-card ${isOverdue ? 'overdue' : ''}">
+                        <h4>
+                            <span class="event-type-icon">${typeIcon}</span>
+                            ${escapeHtml(event.title)}
+                        </h4>
+                        ${timeStr}
+                        ${descStr}
+                        <span class="event-status ${statusClass}">${statusText}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    } catch (error) {
+        contentEl.innerHTML = `<p style="color: #e74c3c;">⚠️ ${escapeHtml(error.message)}</p>`;
+    }
+}
+
+function closeDayEvents() {
+    document.getElementById('day-events-panel')?.classList.remove('visible');
+}
+
 function initCalendar() {
     const calendar = document.getElementById('calendar');
     if (!calendar) {
@@ -292,16 +401,16 @@ function initCalendar() {
     document.getElementById('next-month')?.addEventListener('click', () => changeMonth(1));
 
     document.getElementById('calendar-days')?.addEventListener('click', (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement) || target.tagName !== 'SPAN') {
-            return;
-        }
+        let dayCell = event.target.closest('.calendar-days span');
+        if (!dayCell) return;
 
-        const day = Number.parseInt(target.textContent || '', 10);
-        if (!day || target.classList.contains('other-month')) {
-            return;
-        }
+        const day = Number.parseInt(dayCell.textContent || '', 10);
+        if (!day || dayCell.classList.contains('other-month')) return;
 
+        closeDayEvents();
+        closeResultsPanel();
+
+        loadDayEvents(state.displayYear, state.displayMonth, day);
         showDayResults(state.displayYear, state.displayMonth, day);
     });
 }
@@ -749,6 +858,16 @@ function updateMenuPosition(clientX, clientY, floatingMenu) {
     floatingMenu.style.right = 'auto';
 }
 
+// ===== СОБЫТИЯ НЕДЕЛИ =====
+async function deleteEvent(id) {
+    if (!confirm('Удалить событие?')) return;
+    try {
+        const dash = await fetchJson('/api/dashboard', { headers: authHeaders() });
+        await fetch(`/api/pregnancies/${dash.active_pregnancy.id}/events/${id}`, { method: 'DELETE', headers: authHeaders() });
+        loadWeeklyEvents();
+    } catch(err) { alert(err.message); }
+}
+
 function initFloatingMenu() {
     const floatingMenu = document.getElementById('floating-menu');
     const dragHandle = floatingMenu?.querySelector('.drag-handle');
@@ -795,6 +914,193 @@ function initFloatingMenu() {
     document.addEventListener('touchend', () => {
         state.isDraggingMenu = false;
         floatingMenu.classList.remove('dragging');
+    });
+}
+
+// ===== МОДАЛЬНОЕ ОКНО: СОБЫТИЯ НЕДЕЛИ =====
+
+function openWeeklyModal() {
+    const modal = document.getElementById('weekly-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    loadWeeklyEvents();
+
+    // Установите минимальную дату = сегодня
+    const dateInput = document.getElementById('event-date');
+    if (dateInput) {
+        dateInput.min = new Date().toISOString().split('T')[0];
+        dateInput.value = dateInput.min;
+    }
+}
+
+function closeWeeklyModal() {
+    const modal = document.getElementById('weekly-modal');
+    if (modal) modal.classList.add('hidden');
+
+    // Сброс формы
+    const form = document.querySelector('.add-event-form');
+    if (form) form.reset();
+}
+
+async function loadWeeklyEvents() {
+    const container = document.getElementById('weekly-events-list');
+    if (!container) return;
+
+    container.innerHTML = '<p class="loading">Загрузка событий...</p>';
+
+    try {
+        // Получаем активную беременность из dashboard
+        const dashboard = await fetchJson('/api/dashboard', { headers: authHeaders() });
+        const pregnancyId = dashboard.active_pregnancy?.id;
+
+        if (!pregnancyId) {
+            container.innerHTML = '<p class="weekly-empty">📭 Сначала укажите дату беременности в профиле</p>';
+            return;
+        }
+
+        // Загружаем события
+        const events = await fetchJson(`/api/pregnancies/${pregnancyId}/events`, {
+            headers: authHeaders()
+        });
+
+        // Фильтруем: только события текущей недели
+        const today = new Date();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay() + 1); // Понедельник
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+
+        const weeklyEvents = events.filter(e => {
+            const eventDate = new Date(e.event_date);
+            return eventDate >= weekStart && eventDate <= weekEnd;
+        }).sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+
+        if (weeklyEvents.length === 0) {
+            container.innerHTML = `
+                <p class="weekly-empty">
+                    📭 На этой неделе нет запланированных событий.<br>
+                    Добавьте визит, анализ или УЗИ ниже.
+                </p>
+            `;
+            return;
+        }
+
+        container.innerHTML = weeklyEvents.map(event => {
+            const eventDate = new Date(event.event_date);
+            const dateStr = eventDate.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+            const timeStr = event.time ? ` в ${event.time}` : '';
+            const typeClass = `type-${event.type || 'other'}`;
+            const typeIcon = { visit: '🩺', test: '🧪', ultrasound: '🔍', other: '📌' }[event.type || 'other'];
+
+            return `
+                <div class="weekly-event-card ${typeClass}">
+                    <div class="event-info">
+                        <h4>${typeIcon} ${escapeHtml(event.title)}</h4>
+                        <span class="event-time">${dateStr}${timeStr}</span>
+                        ${event.description ? `<p>${escapeHtml(event.description)}</p>` : ''}
+                    </div>
+                    <div class="event-actions">
+                        <button class="btn-event-action" onclick="editEvent(${event.id})" title="Редактировать">✏️</button>
+                        <button class="btn-event-action delete" onclick="deleteEvent(${event.id})" title="Удалить">🗑️</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        container.innerHTML = `<p style="color: #e74c3c;">⚠️ ${escapeHtml(error.message)}</p>`;
+    }
+}
+
+async function saveEvent() {
+    const title = document.getElementById('event-title')?.value.trim();
+    const description = document.getElementById('event-desc')?.value.trim();
+    const eventDate = document.getElementById('event-date')?.value;
+    const eventTime = document.getElementById('event-time')?.value;
+    const eventType = document.getElementById('event-type')?.value;
+
+    if (!title || !eventDate) {
+        alert('Заполните название и дату события');
+        return;
+    }
+
+    try {
+        const dashboard = await fetchJson('/api/dashboard', { headers: authHeaders() });
+        const pregnancyId = dashboard.active_pregnancy?.id;
+
+        if (!pregnancyId) {
+            alert('Сначала укажите дату беременности в профиле');
+            return;
+        }
+
+        // Рассчитываем неделю беременности для события
+        const lmp = new Date(dashboard.active_pregnancy.last_menstruation_date);
+        const eventDt = new Date(eventDate);
+        const daysDiff = Math.floor((eventDt - lmp) / (1000 * 60 * 60 * 24));
+        const weekOfPregnancy = Math.max(1, Math.floor(daysDiff / 7) + 1);
+
+        await fetchJson(`/api/pregnancies/${pregnancyId}/events`, {
+            method: 'POST',
+            headers: { ...authHeaders(true) },
+            body: JSON.stringify({
+                title,
+                description: description || null,
+                event_date: eventDate,
+                time: eventTime || null,
+                type: eventType,
+                week_of_pregnancy: weekOfPregnancy
+            })
+        });
+
+        alert('✅ Событие добавлено!');
+        loadWeeklyEvents();
+
+        // Сброс формы
+        document.getElementById('event-title').value = '';
+        document.getElementById('event-desc').value = '';
+        document.getElementById('event-time').value = '';
+
+    } catch (error) {
+        alert(`❌ ${error.message}`);
+    }
+}
+
+async function deleteEvent(eventId) {
+    if (!confirm('Удалить это событие?')) return;
+
+    try {
+        const dashboard = await fetchJson('/api/dashboard', { headers: authHeaders() });
+        const pregnancyId = dashboard.active_pregnancy?.id;
+
+        if (!pregnancyId) return;
+
+        // В вашем API нет DELETE, поэтому используем флаг или просто перезагружаем
+        // Если нужно — добавьте эндпоинт DELETE в backend/main.py
+        await fetchJson(`/api/pregnancies/${pregnancyId}/events/${eventId}`, {
+            method: 'DELETE',
+            headers: authHeaders()
+        });
+
+        loadWeeklyEvents();
+    } catch (error) {
+        alert(`❌ ${error.message}`);
+    }
+}
+
+function editEvent(eventId) {
+    // Заглушка: можно расширить для редактирования
+    alert('Редактирование события (функция в разработке)');
+}
+
+function initWeeklyEvents() {
+    // Закрытие по клику вне окна
+    document.getElementById('weekly-modal')?.addEventListener('click', e => {
+        if (e.target.id === 'weekly-modal') closeWeeklyModal();
+    });
+    // Enter в поле названия
+    document.getElementById('event-title')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); saveEvent(); }
     });
 }
 
@@ -851,9 +1157,20 @@ function initApp() {
     initTestForm();
     initFloatingMenu();
     initPregnancySetup();
+    initWeeklyEvents();
     initSymptomChecker();
     updateGreeting();
     checkAuthState();
+
+    document.addEventListener('click', (e) => {
+        const panel = document.getElementById('day-events-panel');
+        const calendar = document.getElementById('calendar');
+        if (panel?.classList.contains('visible') &&
+            !panel.contains(e.target) &&
+            !calendar?.contains(e.target)) {
+            closeDayEvents();
+        }
+    });
 }
 
 window.closeBanner = closeBanner;

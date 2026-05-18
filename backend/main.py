@@ -488,6 +488,8 @@ def create_event(
         description=data.description,
         event_date=data.event_date,
         week_of_pregnancy=data.week_of_pregnancy,
+        time=data.time,
+        event_type=data.event_type,
     )
     db.add(event)
     db.commit()
@@ -499,6 +501,9 @@ def create_event(
         "description": event.description,
         "event_date": event.event_date.isoformat(),
         "week_of_pregnancy": event.week_of_pregnancy,
+        "time": event.time,
+        "event_type": event.event_type,
+        "status": event.status
     }
 
 
@@ -742,6 +747,28 @@ def ask_ai(
 
     return {"reply": answer, "triggered_critical": triggered_critical}
 
+@app.delete("/api/pregnancies/{pregnancy_id}/events/{event_id}")
+def delete_event(
+        pregnancy_id: int,
+        event_id: int,
+        current_user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db),
+):
+    """Удаление события"""
+    ensure_pregnancy_access(db, current_user, pregnancy_id, write_access=True)
+
+    event = db.query(models.Event).filter(
+        models.Event.id == event_id,
+        models.Event.pregnancy_id == pregnancy_id
+    ).first()
+
+    if event is None:
+        raise HTTPException(status_code=404, detail="Событие не найдено")
+
+    db.delete(event)
+    db.commit()
+
+    return {"message": "Событие успешно удалено"}
 
 @app.get("/api/dashboard")
 def dashboard(

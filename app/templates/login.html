@@ -30,38 +30,44 @@
         </div>
 
         <!-- Панель регистрации -->
-        <div id="register-panel" class="panel">
+        <div id="register-panel" class="auth-form">
             <h2>Создать аккаунт</h2>
-            <div class="input-group">
-                <label>Email</label>
-                <input type="email" id="reg_email" placeholder="example@mail.ru">
+
+            <!-- Стандартные поля -->
+            <div class="form-group">
+                <label for="reg_email">Email</label>
+                <input type="email" id="reg_email" placeholder="example@mail.com" required>
             </div>
-            <div class="input-group">
-                <label>Полное имя</label>
-                <input type="text" id="reg_name" placeholder="Иванова Мария">
+            <div class="form-group">
+                <label for="reg_name">Полное имя</label>
+                <input type="text" id="reg_name" placeholder="Иванова Мария" required>
             </div>
-            <div class="input-group">
+            <div class="form-group">
+                <label for="reg_phone">Телефон</label>
+                <input type="tel" id="reg_phone" placeholder="+7 (999) 000-00-00">
+            </div>
+            <div class="form-group">
+                <label for="reg_password">Пароль</label>
+                <input type="password" id="reg_password" placeholder="Минимум 6 символов" required>
+            </div>
+
+            <!-- 👇 НОВЫЕ ПОЛЯ (будут скрыты для партнёров) -->
+            <div class="form-group" id="reg_age_group">
                 <label for="reg_age">Возраст</label>
-                <input type="number" id="reg_age" placeholder="00" min="14" max="99">
+                <input type="number" id="reg_age" placeholder="Например, 28" min="14" max="99">
             </div>
-            <div class="input-group">
-                <label>Телефон</label>
-                <input type="tel" id="reg_phone" placeholder="+7 999 123-45-67">
-            </div>
-            <div class="input-group">
-                <label>Пароль</label>
-                <input type="password" id="reg_password" placeholder="минимум 6 символов">
-            </div>
-            <div class="form-group disclaimer-group" style="margin-bottom: 20px;">
+
+            <div class="form-group" id="reg_disclaimer_group">
                 <label class="checkbox-label" style="cursor: pointer;">
-                    <input type="checkbox" id="reg_disclaimer" required>
-                    <span>Я ознакомлена и принимаю <a href="/disclaimer" target="_blank" class="link-muted">медицинский дисклеймер</a>. Информация в приложении носит справочный характер и не заменяет консультацию врача.</span>
+                    <input type="checkbox" id="reg_disclaimer" style="margin-right: 8px; margin-top: 2px;">
+                    <span>Я ознакомлен(а) и принимаю <a href="/disclaimer" target="_blank" class="link-muted">медицинский дисклеймер</a>.</span>
                 </label>
             </div>
+            <!-- 👆 КОНЕЦ НОВЫХ ПОЛЕЙ -->
+
             <button type="button" class="btn-primary" onclick="doRegister()">Зарегистрироваться</button>
             <div id="register_msg" class="msg"></div>
         </div>
-
         <hr>
         <a href="/" class="back-link">← На главную</a>
     </div>

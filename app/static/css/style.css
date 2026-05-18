@@ -209,6 +209,373 @@ body {
   font-size: 1.2rem;
   color: var(--text-muted);
 }
+
+/* ===== МОДАЛЬНОЕ ОКНО: СОБЫТИЯ НЕДЕЛИ ===== */
+.weekly-modal {
+    max-width: 550px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.weekly-events-list {
+    margin-bottom: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid rgba(var(--secondary-rgb), 0.3);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.weekly-event-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 10px;
+    border-left: 4px solid var(--secondary);
+    transition: transform 0.2s;
+}
+
+.weekly-event-card:hover {
+    transform: translateX(4px);
+}
+
+.weekly-event-card.type-visit { border-left-color: #4ECDC4; }
+.weekly-event-card.type-test { border-left-color: #95E1D3; }
+.weekly-event-card.type-ultrasound { border-left-color: #F38181; }
+.weekly-event-card.type-other { border-left-color: #AA96DA; }
+
+.event-info h4 {
+    margin: 0 0 4px;
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.event-info p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.event-time {
+    font-size: 0.8rem;
+    color: var(--secondary);
+    font-weight: 600;
+    margin-top: 4px;
+    display: block;
+}
+
+.event-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-event-action {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(var(--secondary-rgb), 0.3);
+    color: var(--text-main);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.btn-event-action:hover {
+    background: var(--primary);
+    transform: scale(1.1);
+}
+
+.btn-event-action.delete:hover {
+    background: #e74c3c;
+    color: white;
+}
+
+/* Форма добавления события */
+.add-event-form {
+    border-top: 1px solid rgba(var(--primary-rgb), 0.2);
+    padding-top: 16px;
+}
+
+.add-event-form h4 {
+    margin: 0 0 12px;
+    color: var(--text-main);
+}
+
+.add-event-form input,
+.add-event-form textarea,
+.add-event-form select {
+    width: 100%;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    border: 1px solid rgba(var(--secondary-rgb), 0.4);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+.add-event-form input:focus,
+.add-event-form textarea:focus,
+.add-event-form select:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.add-event-form .btn-primary {
+    width: 100%;
+    margin-top: 8px;
+}
+
+/* Кнопка в меню */
+.floating-menu .weekly-tasks-btn {
+    background: linear-gradient(135deg, rgba(var(--secondary-rgb), 0.3), rgba(var(--primary-rgb), 0.2));
+    color: var(--text-main);
+    border: 1px solid rgba(var(--secondary-rgb), 0.4);
+}
+
+.floating-menu .weekly-tasks-btn:hover {
+    background: linear-gradient(135deg, rgba(var(--secondary-rgb), 0.5), rgba(var(--primary-rgb), 0.35));
+}
+
+/* Пустой список */
+.weekly-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.weekly-empty p {
+    margin: 0 0 12px;
+}
+
+/* Адаптив */
+@media (max-width: 600px) {
+    .weekly-modal {
+        width: 95%;
+        margin: 10px;
+    }
+    .weekly-event-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .event-actions {
+        align-self: flex-end;
+    }
+}
+
+/* ===== КНОПКИ РЯДОМ ===== */
+.action-buttons-wrapper {
+    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+    max-width: 600px; margin: 0 auto 20px;
+}
+.action-btn {
+    flex: 1; min-width: 200px; padding: 12px 16px; border: none; border-radius: 12px;
+    font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+.symptom-toggle { background: linear-gradient(135deg, #4ECDC4, #45B7D1); color: white; }
+.weekly-toggle { background: linear-gradient(135deg, #F4C2C2, #E8DCC8); color: #3E3C38; }
+.action-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+
+/* ===== МОДАЛКА НЕДЕЛИ ===== */
+.weekly-modal { max-width: 550px; max-height: 85vh; overflow-y: auto; }
+.weekly-events-list { max-height: 250px; overflow-y: auto; padding: 10px; background: rgba(255,255,255,0.5); border-radius: 10px; margin-bottom: 16px; }
+.event-card {
+    display: flex; justify-content: space-between; align-items: center; padding: 10px;
+    margin-bottom: 8px; background: white; border-radius: 8px; border-left: 4px solid #ccc;
+}
+.event-card.type-visit { border-left-color: #4ECDC4; }
+.event-card.type-test { border-left-color: #95E1D3; }
+.event-card.type-ultrasound { border-left-color: #F38181; }
+.event-info h4 { margin: 0 0 4px; font-size: 0.95rem; }
+.event-info span { font-size: 0.8rem; color: #666; }
+.btn-delete-event { background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 1.1rem; }
+.add-event-form input, .add-event-form textarea, .add-event-form select {
+    width: 100%; padding: 10px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #ddd;
+}
+
+/* ===== МАРКЕРЫ СОБЫТИЙ В КАЛЕНДАРЕ ===== */
+
+/* Точка-маркер события */
+.event-marker {
+    display: inline-block;
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #95E1D3; /* Зеленый по умолчанию - предстоящее */
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+    transition: transform 0.2s;
+}
+
+/* Просроченное событие - желтый */
+.event-marker.overdue {
+    background: #F4C2C2; /* Желтовато-розовый в вашей палитре */
+}
+
+/* Несколько событий - показываем стопку */
+.event-marker.multiple::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #AA96DA;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+}
+
+/* При наведении на день с событиями */
+.calendar-days span.has-events:hover .event-marker {
+    transform: scale(1.3);
+}
+
+/* ===== ПАНЕЛЬ СОБЫТИЙ ДНЯ ===== */
+.day-events-panel {
+    width: 100%;
+    max-width: 500px;
+    margin: 20px auto 0;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transform: translateY(20px);
+    opacity: 0;
+    max-height: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.day-events-panel.visible {
+    transform: translateY(0);
+    opacity: 1;
+    max-height: 500px;
+    margin-top: 30px;
+}
+
+.day-events-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(var(--primary-rgb), 0.15);
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.day-events-header h3 {
+    color: var(--text-main);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.close-events {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    line-height: 1;
+}
+
+.close-events:hover {
+    background: rgba(var(--secondary-rgb), 0.2);
+    color: var(--text-main);
+}
+
+.events-empty {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.events-content {
+    padding: 16px 20px 20px;
+}
+
+/* Карточка события */
+.event-card {
+    background: rgba(255, 255, 255, 0.6);
+    border-left: 4px solid #95E1D3;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.event-card.overdue {
+    border-left-color: #F4C2C2;
+}
+
+.event-card:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(var(--secondary-rgb), 0.15);
+}
+
+.event-card h4 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.event-card .event-type-icon {
+    font-size: 1.1rem;
+}
+
+.event-card .event-time {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    display: block;
+}
+
+.event-card .event-desc {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.event-card .event-status {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 6px;
+}
+
+.event-status.upcoming {
+    background: rgba(149, 225, 211, 0.3);
+    color: #3a7a70;
+}
+
+.event-status.overdue {
+    background: rgba(244, 194, 194, 0.3);
+    color: #8b5a5a;
+}
+
 /* ===== ПРОВЕРКА СИМПТОМА ===== */
 .symptom-checker-wrapper {
     width: 100%;
@@ -345,6 +712,7 @@ body {
 }
 
 .calendar-days span {
+  position: relative;
   text-align: center;
   padding: 10px 0;
   border-radius: 10px;

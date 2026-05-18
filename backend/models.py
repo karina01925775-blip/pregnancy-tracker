@@ -32,7 +32,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     phone = Column(String, nullable=False, default="")
-    age = Column(Integer, nullable=False)
+    age = Column(Integer, nullable=True)
     role = Column(Enum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
     disclaimer_accepted = Column(Boolean, default=False, nullable=False)
@@ -75,10 +75,11 @@ class Event(Base):
     title = Column(String, nullable=False)        # например "Визит к врачу", "УЗИ"
     description = Column(String, nullable=True)
     event_date = Column(Date, nullable=False)     # дата события
+    time = Column(String, nullable=True)
+    event_type = Column(String, default="other")
     week_of_pregnancy = Column(Integer, nullable=False)  # срок беременности на момент события
     status = Column(String, default="pending")    # pending, completed, overdue
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
     pregnancy = relationship("Pregnancy", back_populates="events")
 
 #======================= Симптомы =======================

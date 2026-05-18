@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         switchTab('register');
 
         // 2. Скрываем поля: Email, Телефон, Пароль
-        ['reg_email', 'reg_phone', 'reg_password'].forEach(id => {
+        ['reg_email', 'reg_phone', 'reg_password', 'reg_age_group', 'reg_disclaimer_group'].forEach(id => {
             const input = document.getElementById(id);
             if (input) {
                 const group = input.closest('.form-group') || input.parentElement;
