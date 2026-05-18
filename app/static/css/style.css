@@ -704,28 +704,39 @@ body {
   color: var(--text-muted);
   padding: 8px 0;
 }
-
 .calendar-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
 }
 
+.calendar-days .calendar-day,
 .calendar-days span {
-  position: relative;
   text-align: center;
-  padding: 10px 0;
+  min-height: 42px;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  padding: 0;
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 0.95rem;
   color: var(--text-main);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
 }
 
+.calendar-days .calendar-day:hover,
 .calendar-days span:hover {
   background: rgba(var(--secondary-rgb), 0.2);
 }
 
+.calendar-days .calendar-day.today,
 .calendar-days span.today {
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   color: #4a3f3f; /* Тёмный текст для контраста на светлом градиенте */
@@ -733,11 +744,13 @@ body {
   box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.3);
 }
 
+.calendar-days .calendar-day.other-month,
 .calendar-days span.other-month {
   color: #C5C0B8;
 }
 
 /* Базовый стиль выделения */
+.calendar-days .calendar-day.highlighted,
 .calendar-days span.highlighted {
     background: rgba(var(--secondary-rgb), 0.3);
     border-radius: 4px;
@@ -746,6 +759,7 @@ body {
 }
 
 /* Начало диапазона */
+.calendar-days .calendar-day.range-start,
 .calendar-days span.range-start {
     background: var(--secondary);
     color: #4a3f3f;
@@ -754,6 +768,7 @@ body {
 }
 
 /* Конец диапазона */
+.calendar-days .calendar-day.range-end,
 .calendar-days span.range-end {
     background: var(--secondary);
     color: #4a3f3f;
@@ -762,11 +777,13 @@ body {
 }
 
 /* Если начало и конец совпадают (один день) */
+.calendar-days .calendar-day.highlighted.range-start.range-end,
 .calendar-days span.highlighted.range-start.range-end {
     border-radius: 10px;
 }
 
 /* Убираем наложение стилей, если день одновременно "сегодня" и в диапазоне */
+.calendar-days .calendar-day.today.highlighted,
 .calendar-days span.today.highlighted {
     background: linear-gradient(135deg, var(--primary), var(--secondary));
     color: #4a3f3f;
@@ -1161,6 +1178,7 @@ body {
     display: none !important;
 }
 
+.is-partner .calendar-days .calendar-day,
 .is-partner .calendar-days span {
     cursor: default;
 }
@@ -1586,8 +1604,10 @@ footer a:hover {
 .day-results-panel.visible {
     transform: translateY(0);
     opacity: 1;
-    max-height: 600px;
+    max-height: min(80vh, 640px);
     margin-top: 30px;
+    display: flex;
+    flex-direction: column;
 }
 
 .day-results-header {
@@ -1653,6 +1673,13 @@ footer a:hover {
 
 .results-content {
     padding: 16px 20px 20px;
+    overflow-y: auto;
+    max-height: min(55vh, 420px);
+}
+
+.results-empty {
+    overflow-y: auto;
+    max-height: min(55vh, 420px);
 }
 
 /* Карточка результата теста */
@@ -2094,4 +2121,15 @@ hr {
     .invite-buttons {
         justify-content: flex-end;
     }
+}
+
+.calendar-day-number {
+  line-height: 1;
+}
+
+.calendar-day-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d77a94;
 }
