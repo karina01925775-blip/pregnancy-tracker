@@ -24,8 +24,7 @@ const state = {
     currentInviteId: null,
     isDraggingMenu: false,
     dragOffsetX: 0,
-    dragOffsetY: 0,
-    testHistoryByDate: {}
+    dragOffsetY: 0
 };
 
 function getToken() {
@@ -132,12 +131,6 @@ function updateCalendarFromDB(startDateStr, endDateStr) {
     renderCalendar();
 }
 
-function hasHistoryForDate(year, month, day) {
-    const key = formatApiDate(year, month, day);
-    const records = state.testHistoryByDate[key];
-    return Array.isArray(records) && records.length > 0;
-}
-
 async function renderCalendar() {
     const monthYearEl = document.getElementById('month-year');
     const daysContainer = document.getElementById('calendar-days');
@@ -184,15 +177,22 @@ async function renderCalendar() {
 
     // 🔹 2. ОТРИСОВКА ДНЕЙ + МАРКЕРОВ СИНХРОННО
     for (let day = 1; day <= lastDay.getDate(); day += 1) {
-        const dayCell = document.createElement('button');
-        dayCell.type = 'button';
+        const dayCell = document.createElement('span');
         dayCell.classList.add('calendar-day');
-        dayCell.dataset.day = String(day);
+        dayCell.dataset.day = day;
 
+        const contentWrapper = document.createElement('div');
+        contentWrapper.style.position = 'relative';
+        contentWrapper.style.width = '100%';
+        contentWrapper.style.height = '100%';
+
+        // Цифра дня
         const dayNumber = document.createElement('span');
-        dayNumber.classList.add('calendar-day-number');
-        dayNumber.textContent = String(day);
-        dayCell.appendChild(dayNumber);
+        dayNumber.textContent = day;
+        dayNumber.style.display = 'block';
+        contentWrapper.appendChild(dayNumber);
+
+        dayCell.appendChild(contentWrapper);
 
         const cellDate = new Date(state.displayYear, state.displayMonth, day);
         const cellTime = cellDate.getTime();
@@ -205,13 +205,6 @@ async function renderCalendar() {
             if (cellTime >= highlightedStart.getTime() && cellTime <= highlightedEnd.getTime()) dayCell.classList.add('highlighted');
             if (cellTime === highlightedStart.getTime()) dayCell.classList.add('range-start');
             if (cellTime === highlightedEnd.getTime()) dayCell.classList.add('range-end');
-        }
-
-        if (hasHistoryForDate(state.displayYear, state.displayMonth, day)) {
-            const dot = document.createElement('span');
-            dot.classList.add('calendar-day-dot');
-            dayCell.appendChild(dot);
-            dayCell.classList.add('has-events');
         }
 
         daysContainer.appendChild(dayCell);
@@ -300,8 +293,6 @@ async function showDayResults(year, month, day) {
             headers: authHeaders()
         });
 
-        state.testHistoryByDate[formatApiDate(year, month, day)] = history;
-
         if (!history.length) {
             emptyEl.style.display = 'block';
             contentEl.style.display = 'none';
@@ -314,7 +305,6 @@ async function showDayResults(year, month, day) {
         contentEl.innerHTML = `<p style="color: #e74c3c;">${escapeHtml(error.message)}</p>`;
     }
 
-    renderCalendar();
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -425,20 +415,16 @@ function initCalendar() {
     document.getElementById('next-month')?.addEventListener('click', () => changeMonth(1));
 
     document.getElementById('calendar-days')?.addEventListener('click', (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) {
-            return;
-        }
+        let dayCell = event.target.closest('.calendar-days span');
+        if (!dayCell) return;
 
-        const dayButton = target.closest('.calendar-day');
-        if (!(dayButton instanceof HTMLElement) || dayButton.classList.contains('other-month')) {
-            return;
-        }
+        const day = Number.parseInt(dayCell.textContent || '', 10);
+        if (!day || dayCell.classList.contains('other-month')) return;
 
-        const day = Number.parseInt(dayButton.dataset.day || '', 10);
-        if (!day) {
-            return;
-        }
+        closeDayEvents();
+        closeResultsPanel();
+
+        loadDayEvents(state.displayYear, state.displayMonth, day);
         showDayResults(state.displayYear, state.displayMonth, day);
     });
 }
